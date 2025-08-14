@@ -2,7 +2,15 @@
   "name": "tsqn",
   "version": "0.1.0",
   "description": "TypeScript Query Notation - Declarative data updates with automatic change tracking",
-  "keywords": ["typescript", "update", "query", "state", "immutable", "data", "transformation"],
+  "keywords": [
+    "typescript",
+    "update",
+    "query",
+    "state",
+    "immutable",
+    "data",
+    "transformation"
+  ],
   "author": "Edvin",
   "license": "MIT",
   "main": "./dist/index.cjs",
@@ -16,7 +24,11 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -28,7 +40,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/edvin/tsqn.git"
+    "url": "git+https://github.com/edvin/tsqn.git"
   },
   "devDependencies": {
     "@types/node": "^24.2.1",
