@@ -53,7 +53,7 @@ describe('change detection', () => {
             theme: anyChange
           }
         }
-      });
+      } as any);
 
       expect(hasThemeChange).toBe(true);
     });

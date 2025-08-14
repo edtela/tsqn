@@ -110,12 +110,12 @@ describe('update functionality', () => {
       };
 
       const changes = update(data, {
-        user: [{ name: 'Bob', age: 25 }]
+        user: [{ name: 'Bob', age: 25, city: 'LA' }] as [{ name: string; age: number; city: string }]
       });
 
-      expect(data.user).toEqual({ name: 'Bob', age: 25 });
+      expect(data.user).toEqual({ name: 'Bob', age: 25, city: 'LA' });
       expect(changes).toEqual({
-        user: { name: 'Bob', age: 25 },
+        user: { name: 'Bob', age: 25, city: 'LA' },
         [META]: { user: { original: { name: 'Alice', age: 30, city: 'NYC' } } }
       });
     });
@@ -316,7 +316,7 @@ describe('update functionality', () => {
         name: 'Alice',
         bio: 'Developer',
         avatar: ''
-      });
+      } as any);
 
       expect(changes).toEqual({
         user: {
@@ -374,7 +374,9 @@ describe('update functionality', () => {
 
   describe('CONTEXT operator', () => {
     it('should pass context variables to functions', () => {
-      const data = {
+      const data: {
+        items: Array<{ price: number; finalPrice?: number }>
+      } = {
         items: [
           { price: 100 },
           { price: 200 }
@@ -418,7 +420,9 @@ describe('update functionality', () => {
     });
 
     it('should pass context through WHERE predicates', () => {
-      const data = {
+      const data: {
+        items: Array<{ value: number; marked?: boolean }>
+      } = {
         items: [
           { value: 50 },
           { value: 150 }
