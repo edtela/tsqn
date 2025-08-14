@@ -177,7 +177,85 @@ const hasUserChanges = hasChanges(changes, {
 
 ## Selection
 
-Query and extract data by path:
+Extract partial data with type-safe selection queries:
+
+```typescript
+import { select, ALL, WHERE } from 'tsqn';
+
+// Basic object selection
+const user = {
+  name: 'Alice',
+  age: 30,
+  email: 'alice@example.com',
+  profile: {
+    bio: 'Developer',
+    location: 'NYC'
+  }
+};
+
+const basicSelect = select(user, {
+  name: true,
+  profile: {
+    bio: true
+  }
+});
+// Result: { name: 'Alice', profile: { bio: 'Developer' } }
+
+// Array selection with ALL
+const users = [
+  { id: 1, name: 'Alice', age: 30 },
+  { id: 2, name: 'Bob', age: 25 },
+  { id: 3, name: 'Charlie', age: 35 }
+];
+
+const allUsers = select(users, {
+  [ALL]: {
+    id: true,
+    name: true
+  }
+});
+// Result: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }, { id: 3, name: 'Charlie' }]
+
+// Filtering with WHERE
+const items = [
+  { id: 1, name: 'Apple', price: 3 },
+  { id: 2, name: 'Banana', price: 7 },
+  { id: 3, name: 'Orange', price: 5 }
+];
+
+const expensiveItems = select(items, {
+  [ALL]: {
+    [WHERE]: (item) => item.price > 5,
+    name: true,
+    price: true
+  }
+});
+// Result: [{ name: 'Banana', price: 7 }]
+
+// Sparse array selection (preserves indices)
+const data = ['a', 'b', 'c', 'd'];
+const sparseSelect = select(data, {
+  '0': true,
+  '2': true
+});
+// Result: ['a', undefined, 'c']
+
+// Works with Record types
+const userMap: Record<string, User> = {
+  'user123': { name: 'Alice', age: 30 },
+  'user456': { name: 'Bob', age: 25 }
+};
+
+const selectedUsers = select(userMap, {
+  'user123': { name: true },
+  'user456': { age: true }
+});
+// Result: { 'user123': { name: 'Alice' }, 'user456': { age: 25 } }
+```
+
+### Selection Path Utility
+
+For simple path-based selection:
 
 ```typescript
 import { selectByPath, ALL } from 'tsqn';
@@ -200,6 +278,7 @@ const prices = selectByPath(data, ['items', ALL, 'price']);
 
 - `update<T>(data: T, statement: Update<T>, changes?: UpdateResult<T>): UpdateResult<T> | undefined`
 - `undoUpdate<T>(data: T, changes: UpdateResult<T>): void`
+- `select<T>(data: T, statement: Select<T>): SelectResult<T> | undefined`
 - `selectByPath<T>(data: T, path: (string | symbol)[]): Partial<T> | undefined`
 - `hasChanges<T>(result: UpdateResult<T>, detector: ChangeDetector<T>): boolean`
 

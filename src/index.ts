@@ -8,7 +8,9 @@ export type {
   UpdateResultMeta,
   DataChange,
   ChangeDetector,
-  ChangeDetectorFn
+  ChangeDetectorFn,
+  Select,
+  SelectResult
 } from './types.js';
 
 // Export update functionality
@@ -18,7 +20,7 @@ export { update } from './update.js';
 export { undoUpdate } from './undo.js';
 
 // Export select functionality
-export { selectByPath } from './select.js';
+export { select, selectByPath } from './select.js';
 
 // Export change detection
 export { hasChanges, anyChange, typeChange } from './change-detection.js';

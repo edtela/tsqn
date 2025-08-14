@@ -1,4 +1,4 @@
-import { ALL, WHERE, DEFAULT, CONTEXT, META } from './symbols.js';
+import { ALL, WHERE, DEFAULT, CONTEXT, META } from "./symbols.js";
 
 // Helper type to extract only string keys from T
 type StringKeys<T> = Extract<keyof T, string>;
@@ -13,7 +13,13 @@ type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (
 // Helper to get the value type for ALL operator
 // - For arrays: the element type
 // - For objects: intersection of all value types
-type AllValueType<T extends object> = T extends readonly any[] ? T[number] : UnionToIntersection<T[keyof T]>;
+type AllValueType<T> = T extends readonly any[] ? T[number] : UnionToIntersection<T[keyof T]>;
+
+type DeepPartial<T> = T extends readonly any[]
+  ? T // Arrays remain arrays (just filtered)
+  : T extends object
+    ? { [K in keyof T]?: DeepPartial<T[K]> }
+    : T;
 
 export type DataChange<T> = UpdateResult<T>;
 
@@ -36,7 +42,9 @@ type UpdateArray<T extends readonly any[]> = {
     ? Update<E> | ((value: E, data: T, index: string, ctx?: Record<string, any>) => Update<E>)
     : never;
 } & {
-  [ALL]?: T extends readonly (infer E)[] ? Update<E> | ((value: E, data: T, index: number, ctx?: Record<string, any>) => Update<E>) : never;
+  [ALL]?: T extends readonly (infer E)[]
+    ? Update<E> | ((value: E, data: T, index: number, ctx?: Record<string, any>) => Update<E>)
+    : never;
 };
 
 // Update type for non-array objects
@@ -49,7 +57,9 @@ type UpdateNonArrayObject<T extends object> = {
     | (IsOptional<T, K> extends true ? [] : never)
     | ((value: T[K], data: T, key: K, ctx?: Record<string, any>) => Update<T[K]>);
 } & {
-  [ALL]?: Update<AllValueType<T>> | ((value: AllValueType<T>, data: T, key: keyof T, ctx?: Record<string, any>) => Update<AllValueType<T>>);
+  [ALL]?:
+    | Update<AllValueType<T>>
+    | ((value: AllValueType<T>, data: T, key: keyof T, ctx?: Record<string, any>) => Update<AllValueType<T>>);
 };
 
 // Update type for objects (arrays and non-arrays)
@@ -116,3 +126,33 @@ export type ChangeDetector<T> = T extends readonly any[]
   : T extends object
     ? ObjectChangeDetector<T>
     : never;
+
+//SELECT
+export type Select<T> = T extends readonly any[] ? ArraySelect<T> : T extends object ? ObjectSelect<T> : never;
+
+type ArraySelect<T extends readonly any[]> = T extends readonly (infer E)[]
+  ? {
+      [key: string]: boolean | Select<E>;
+      [WHERE]?: (value: E) => boolean;
+      [ALL]?: boolean | Select<E>;
+    }
+  : never;
+
+type ObjectSelect<T extends object> = string extends keyof T
+  ? RecordSelect<T> // Has string index signature
+  : KnownKeysSelect<T>; // Regular object
+
+type RecordSelect<T> = {
+  [key: string]: boolean | Select<AllValueType<T>>;
+  [WHERE]?: (value: T) => boolean;
+  [ALL]?: boolean | Select<AllValueType<T>>;
+};
+
+type KnownKeysSelect<T extends object> = {
+  [K in StringKeys<T>]?: boolean | Select<T[K]>;
+} & {
+  [WHERE]?: (value: T) => boolean;
+  [ALL]?: boolean | Select<AllValueType<T>>;
+};
+
+export type SelectResult<T> = DeepPartial<T>;
