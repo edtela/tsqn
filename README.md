@@ -20,7 +20,7 @@ npm install tsqn
 ## Quick Start
 
 ```typescript
-import { update, undoUpdate, META } from 'tsqn';
+import { update, undo, META } from 'tsqn';
 
 // Simple property update
 const data = {
@@ -37,7 +37,7 @@ console.log(data.user.age); // 31
 console.log(changes); // Contains change history with original values
 
 // Undo the changes
-undoUpdate(data, changes);
+undo(data, changes);
 console.log(data.user.age); // 30
 ```
 
@@ -258,7 +258,7 @@ const selectedUsers = select(userMap, {
 ### Core Functions
 
 - `update<T>(data: T, statement: Update<T>, changes?: UpdateResult<T>): UpdateResult<T> | undefined`
-- `undoUpdate<T>(data: T, changes: UpdateResult<T>): void`
+- `undo<T>(data: T, changes: UpdateResult<T>): void`
 - `select<T>(data: T, statement: Select<T>): SelectResult<T> | undefined`
 - `hasChanges<T>(result: UpdateResult<T>, detector: ChangeDetector<T>): boolean`
 

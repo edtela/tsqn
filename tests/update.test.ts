@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { update, undoUpdate, META } from '../src/index.js';
+import { update, undo, META } from '../src/index.js';
 
 describe('update functionality', () => {
   describe('direct value updates', () => {
@@ -163,7 +163,7 @@ describe('update functionality', () => {
 
       expect(data.user.age).toBe(31);
 
-      undoUpdate(data, changes);
+      undo(data, changes);
       expect(data.user.age).toBe(30);
     });
 
@@ -189,7 +189,7 @@ describe('update functionality', () => {
       expect(data.app.settings.theme).toBe('light');
       expect(data.app.settings.fontSize).toBe(16);
 
-      undoUpdate(data, changes);
+      undo(data, changes);
       expect(data.app.settings.theme).toBe('dark');
       expect(data.app.settings.fontSize).toBe(14);
     });

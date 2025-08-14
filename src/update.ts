@@ -130,6 +130,10 @@ export function updateImpl(data: any, statement?: any, changes?: any, context?: 
   return changes;
 }
 
+export function undo<T extends object>(data: T, result: UpdateResult<T> | undefined) {
+  return undoUpdateImpl(data, result);
+}
+
 function undoUpdateImpl(data: any, result: any) {
   if (data == null || typeof data !== "object" || result === undefined) {
     return data;
