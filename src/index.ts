@@ -20,7 +20,7 @@ export { update } from './update.js';
 export { undoUpdate } from './undo.js';
 
 // Export select functionality
-export { select, selectByPath } from './select.js';
+export { select } from './select.js';
 
 // Export change detection
 export { hasChanges, anyChange, typeChange } from './change-detection.js';

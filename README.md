@@ -253,25 +253,6 @@ const selectedUsers = select(userMap, {
 // Result: { 'user123': { name: 'Alice' }, 'user456': { age: 25 } }
 ```
 
-### Selection Path Utility
-
-For simple path-based selection:
-
-```typescript
-import { selectByPath, ALL } from 'tsqn';
-
-const data = {
-  items: {
-    item1: { price: 10, name: 'Item 1' },
-    item2: { price: 20, name: 'Item 2' }
-  }
-};
-
-// Select all prices
-const prices = selectByPath(data, ['items', ALL, 'price']);
-// Result: { items: { item1: { price: 10 }, item2: { price: 20 } } }
-```
-
 ## API Reference
 
 ### Core Functions
@@ -279,7 +260,6 @@ const prices = selectByPath(data, ['items', ALL, 'price']);
 - `update<T>(data: T, statement: Update<T>, changes?: UpdateResult<T>): UpdateResult<T> | undefined`
 - `undoUpdate<T>(data: T, changes: UpdateResult<T>): void`
 - `select<T>(data: T, statement: Select<T>): SelectResult<T> | undefined`
-- `selectByPath<T>(data: T, path: (string | symbol)[]): Partial<T> | undefined`
 - `hasChanges<T>(result: UpdateResult<T>, detector: ChangeDetector<T>): boolean`
 
 ### Symbols
