@@ -17,28 +17,166 @@ A powerful, type-safe data update system for JavaScript/TypeScript that enables 
 npm install tsqn
 ```
 
-## Quick Start
+## Complete Examples
+
+### 🔄 Update with Undo - Track and revert changes
 
 ```typescript
 import { update, undo, META } from 'tsqn';
 
-// Simple property update
-const data = {
-  user: { name: 'Alice', age: 30 },
-  settings: { theme: 'dark' }
+const state = {
+  user: { name: 'Alice', age: 30, role: 'user' },
+  preferences: { theme: 'dark', notifications: true }
 };
 
-const changes = update(data, {
-  user: { age: 31 },
-  settings: { theme: 'light' }
+// Make updates and track changes
+const changes = update(state, {
+  user: { 
+    age: 31,
+    role: 'admin'
+  },
+  preferences: { 
+    theme: 'light' 
+  }
 });
 
-console.log(data.user.age); // 31
-console.log(changes); // Contains change history with original values
+console.log(state.user.age); // 31
+console.log(state.user.role); // 'admin'
 
-// Undo the changes
-undo(data, changes);
-console.log(data.user.age); // 30
+// Inspect what changed
+console.log(changes);
+// {
+//   user: { 
+//     age: 31, 
+//     role: 'admin',
+//     [META]: { 
+//       age: { original: 30 }, 
+//       role: { original: 'user' }
+//     }
+//   },
+//   preferences: { 
+//     theme: 'light',
+//     [META]: { theme: { original: 'dark' } }
+//   }
+// }
+
+// Revert all changes
+undo(state, changes);
+console.log(state.user.age); // 30 - back to original
+console.log(state.user.role); // 'user' - back to original
+```
+
+### 🔍 Select - Extract and filter data
+
+```typescript
+import { select, ALL, WHERE } from 'tsqn';
+
+const database = {
+  users: [
+    { id: 1, name: 'Alice', age: 30, email: 'alice@example.com', active: true },
+    { id: 2, name: 'Bob', age: 25, email: 'bob@example.com', active: false },
+    { id: 3, name: 'Charlie', age: 35, email: 'charlie@example.com', active: true }
+  ],
+  config: {
+    appName: 'MyApp',
+    version: '2.0.0',
+    features: {
+      darkMode: true,
+      notifications: true,
+      analytics: false
+    }
+  }
+};
+
+// Select specific fields from active users
+const activeUsers = select(database, {
+  users: {
+    [ALL]: {
+      [WHERE]: (user) => user.active,
+      id: true,
+      name: true,
+      email: true
+    }
+  }
+});
+// Result: {
+//   users: [
+//     { id: 1, name: 'Alice', email: 'alice@example.com' },
+//     { id: 3, name: 'Charlie', email: 'charlie@example.com' }
+//   ]
+// }
+
+// Select nested configuration
+const appConfig = select(database, {
+  config: {
+    appName: true,
+    features: {
+      darkMode: true,
+      notifications: true
+    }
+  }
+});
+// Result: {
+//   config: {
+//     appName: 'MyApp',
+//     features: { darkMode: true, notifications: true }
+//   }
+// }
+```
+
+### 🔐 Transaction - Multiple updates with commit/revert
+
+```typescript
+import { transaction, ALL } from 'tsqn';
+
+const gameState = {
+  player: { 
+    health: 100, 
+    mana: 50, 
+    position: { x: 0, y: 0 } 
+  },
+  enemies: [
+    { id: 1, health: 50, damage: 10 },
+    { id: 2, health: 30, damage: 15 }
+  ],
+  score: 0
+};
+
+// Start a transaction for a player action
+const tx = transaction(gameState);
+
+// Apply multiple related updates
+tx.update({ 
+  player: { 
+    health: (h) => h - 20,  // Take damage
+    mana: (m) => m - 10      // Use mana for spell
+  } 
+})
+.update({ 
+  enemies: { 
+    [ALL]: { 
+      health: (h) => Math.max(0, h - 25)  // Damage all enemies
+    } 
+  } 
+})
+.update({ 
+  score: (s) => s + 100  // Add score for the action
+});
+
+// Check state before committing
+console.log(gameState.player.health); // 80 - already applied
+console.log(gameState.enemies[0].health); // 25
+
+// Decide whether to commit or revert
+if (gameState.player.health > 0) {
+  const changes = tx.commit();
+  console.log('Action completed!');
+  // Can still undo later using: undo(gameState, changes)
+} else {
+  tx.revert(); // Revert all changes
+  console.log('Action failed - reverting');
+  console.log(gameState.player.health); // 100 - back to original
+}
 ```
 
 ## Core Concepts
@@ -259,6 +397,7 @@ const selectedUsers = select(userMap, {
 
 - `update<T>(data: T, statement: Update<T>, changes?: UpdateResult<T>): UpdateResult<T> | undefined`
 - `undo<T>(data: T, changes: UpdateResult<T>): void`
+- `transaction<T>(data: T): { update, commit, revert }`
 - `select<T>(data: T, statement: Select<T>): SelectResult<T> | undefined`
 - `hasChanges<T>(result: UpdateResult<T>, detector: ChangeDetector<T>): boolean`
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { update, undo, META, ALL, WHERE, DEFAULT, CONTEXT } from '../src/index.js';
+import { update, undo, transaction, META, ALL, WHERE, DEFAULT, CONTEXT } from '../src/index.js';
 
 describe('update functionality', () => {
   describe('direct value updates', () => {
@@ -438,6 +438,115 @@ describe('update functionality', () => {
       expect(data.items[0]).not.toHaveProperty('marked');
       expect(data.items[1]).toHaveProperty('marked');
       expect(data.items[1].marked).toBe(true);
+    });
+  });
+
+  describe('transaction', () => {
+    it('should accumulate multiple updates and return combined changes', () => {
+      const data = {
+        user: { name: 'Alice', age: 30 },
+        settings: { theme: 'dark', fontSize: 14 }
+      };
+
+      const tx = transaction(data);
+      tx.update({ user: { age: 31 } });
+      tx.update({ settings: { theme: 'light' } });
+      const changes = tx.commit();
+
+      // Data should be updated
+      expect(data.user.age).toBe(31);
+      expect(data.settings.theme).toBe('light');
+
+      // Changes should be accumulated
+      expect(changes).toEqual({
+        user: { age: 31, [META]: { age: { original: 30 } } },
+        settings: { theme: 'light', [META]: { theme: { original: 'dark' } } }
+      });
+    });
+
+    it('should support method chaining', () => {
+      const data = {
+        counter: { value: 0 },
+        status: { active: false }
+      };
+
+      const changes = transaction(data)
+        .update({ counter: { value: 1 } })
+        .update({ counter: { value: 2 } })
+        .update({ status: { active: true } })
+        .commit();
+
+      expect(data.counter.value).toBe(2);
+      expect(data.status.active).toBe(true);
+      
+      // Changes should track original values
+      expect(changes).toEqual({
+        counter: { value: 2, [META]: { value: { original: 0 } } },
+        status: { active: true, [META]: { active: { original: false } } }
+      });
+    });
+
+    it('should revert all changes when revert is called', () => {
+      const data = {
+        user: { name: 'Alice', age: 30 },
+        settings: { theme: 'dark' }
+      };
+
+      const tx = transaction(data);
+      tx.update({ user: { name: 'Bob', age: 31 } });
+      tx.update({ settings: { theme: 'light' } });
+      
+      // Verify changes were applied
+      expect(data.user.name).toBe('Bob');
+      expect(data.user.age).toBe(31);
+      expect(data.settings.theme).toBe('light');
+
+      // Revert all changes
+      tx.revert();
+
+      // Data should be back to original
+      expect(data.user.name).toBe('Alice');
+      expect(data.user.age).toBe(30);
+      expect(data.settings.theme).toBe('dark');
+    });
+
+    it('should clear changes after revert', () => {
+      const data = { value: 1 };
+
+      const tx = transaction(data);
+      tx.update({ value: 2 });
+      tx.revert();
+      
+      const changes = tx.commit();
+      expect(changes).toBeUndefined();
+    });
+
+    it('should handle complex nested updates in transaction', () => {
+      const data = {
+        users: [
+          { id: 1, name: 'Alice', score: 100 },
+          { id: 2, name: 'Bob', score: 200 }
+        ]
+      };
+
+      const changes = transaction(data)
+        .update({ 
+          users: { 
+            '0': { score: (s: number) => s + 10 } 
+          } 
+        })
+        .update({ 
+          users: { 
+            [ALL]: { 
+              bonus: 5 
+            } 
+          } 
+        })
+        .commit();
+
+      expect(data.users[0].score).toBe(110);
+      expect(data.users[0]).toHaveProperty('bonus', 5);
+      expect(data.users[1]).toHaveProperty('bonus', 5);
     });
   });
 });

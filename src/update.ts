@@ -1,10 +1,4 @@
-import {
-  ALL,
-  WHERE,
-  DEFAULT,
-  CONTEXT,
-  META,
-} from "./symbols.js";
+import { ALL, WHERE, DEFAULT, CONTEXT, META } from "./symbols.js";
 import type { Update, UpdateResult } from "./types.js";
 
 export function update<T extends object>(d: T, u?: Update<T>, c?: UpdateResult<T>): UpdateResult<T> | undefined {
@@ -40,7 +34,7 @@ export function updateImpl(data: any, statement?: any, changes?: any, context?: 
       //we need to undo changes that may have occured before setting it as original
       const oldValueChanges = changes?.[key];
       if (oldValueChanges) {
-        undoUpdateImpl(oldValue, oldValueChanges);
+        undoImpl(oldValue, oldValueChanges);
       }
     }
 
@@ -131,10 +125,10 @@ export function updateImpl(data: any, statement?: any, changes?: any, context?: 
 }
 
 export function undo<T extends object>(data: T, result: UpdateResult<T> | undefined) {
-  return undoUpdateImpl(data, result);
+  return undoImpl(data, result);
 }
 
-function undoUpdateImpl(data: any, result: any) {
+function undoImpl(data: any, result: any) {
   if (data == null || typeof data !== "object" || result === undefined) {
     return data;
   }
@@ -145,7 +139,23 @@ function undoUpdateImpl(data: any, result: any) {
     if (meta && key in meta) {
       data[key] = meta[key].original;
     } else {
-      undoUpdateImpl(data[key], change);
+      undoImpl(data[key], change);
     }
   }
+}
+
+export function transaction<T extends object>(data: T) {
+  let changes: UpdateResult<T> | undefined;
+
+  return {
+    update(stmt: Update<T>) {
+      changes = updateImpl(data, stmt, changes);
+      return this; // Allow chaining
+    },
+    commit: () => changes,
+    revert: () => {
+      if (changes) undo(data, changes);
+      changes = undefined;
+    },
+  };
 }

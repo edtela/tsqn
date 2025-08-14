@@ -13,8 +13,8 @@ export type {
   SelectResult
 } from './types.js';
 
-// Export update and undo functionality
-export { update, undo } from './update.js';
+// Export update, undo, and transaction functionality
+export { update, undo, transaction } from './update.js';
 
 // Export select functionality
 export { select } from './select.js';
