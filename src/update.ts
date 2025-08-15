@@ -152,9 +152,15 @@ export function transaction<T extends object>(data: T) {
       changes = updateImpl(data, stmt, changes);
       return this; // Allow chaining
     },
-    commit: () => changes,
+    commit: () => {
+      const v = changes;
+      changes = undefined;
+      return v;
+    },
     revert: () => {
-      if (changes) undo(data, changes);
+      if (changes) {
+        undo(data, changes);
+      }
       changes = undefined;
     },
   };
