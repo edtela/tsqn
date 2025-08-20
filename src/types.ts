@@ -47,7 +47,33 @@ type UpdateArray<T extends readonly any[]> = {
     : never;
 };
 
-// Update type for non-array objects
+// Update type for Record types with string index signatures
+// - Allows any string key for dynamic updates
+// - Supports value updates, functions, and deletions
+// - [ALL] updates all properties with the same value/function
+// - Special handling for 'any' value types for better ergonomics
+type RecordUpdate<T> = AllValueType<T> extends any
+  ? unknown extends AllValueType<T>
+    ? {
+        // When value type is truly 'any', allow any updates
+        [key: string]: any;
+      } & {
+        [ALL]?: any;
+      }
+    : {
+        // Normal Record handling
+        [key: string]:
+          | Update<AllValueType<T>>
+          | []
+          | ((value: AllValueType<T>, data: T, key: string, ctx?: Record<string, any>) => Update<AllValueType<T>>);
+      } & {
+        [ALL]?:
+          | Update<AllValueType<T>>
+          | ((value: AllValueType<T>, data: T, key: string, ctx?: Record<string, any>) => Update<AllValueType<T>>);
+      }
+  : never;
+
+// Update type for non-array objects with known keys
 // - Each property can be updated with a value or function
 // - Optional properties can be deleted with []
 // - [ALL] updates all properties (type-safe intersection)
@@ -63,9 +89,15 @@ type UpdateNonArrayObject<T extends object> = {
 };
 
 // Update type for objects (arrays and non-arrays)
-// - Delegates to appropriate sub-type
+// - Routes to UpdateArray for arrays
+// - Routes to RecordUpdate for Record types with string index signatures
+// - Routes to UpdateNonArrayObject for regular objects
 // - WHERE predicate applies to the entire object
-type UpdateObject<T extends object> = (T extends readonly any[] ? UpdateArray<T> : UpdateNonArrayObject<T>) & {
+type UpdateObject<T extends object> = (T extends readonly any[]
+  ? UpdateArray<T>
+  : string extends keyof T
+    ? RecordUpdate<T>
+    : UpdateNonArrayObject<T>) & {
   [WHERE]?: (value: T, context?: Record<string, any>) => boolean;
   [DEFAULT]?: T;
   [CONTEXT]?: Record<string, any>;
