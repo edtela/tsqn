@@ -63,7 +63,7 @@ type UpdateArray<T extends readonly any[]> = T extends readonly (infer E)[]
 // - Supports value updates, functions, and deletions
 // - [ALL] updates all properties with the same value/function
 // - Uses the value type V directly (not intersection like AllValueType)
-type RecordUpdate<T> = T extends Record<string, infer V>
+type UpdateRecord<T> = T extends Record<string, infer V>
   ? {
       [key: string]:
         | Update<V>
@@ -76,11 +76,11 @@ type RecordUpdate<T> = T extends Record<string, infer V>
     }
   : never;
 
-// Update type for non-array objects with known keys
+// Update type for objects with known/fixed keys (not index signatures)
 // - Each property can be updated with a value or function
 // - Optional properties can be deleted with Delete
 // - [ALL] updates all properties (type-safe intersection)
-type UpdateNonArrayObject<T extends object> = {
+type UpdateKnownKeys<T extends object> = {
   [K in StringKeys<T>]?:
     | Update<T[K]>
     | (IsOptional<T, K> extends true ? Delete : never)
@@ -93,14 +93,14 @@ type UpdateNonArrayObject<T extends object> = {
 
 // Update type for objects (arrays and non-arrays)
 // - Routes to UpdateArray for arrays
-// - Routes to RecordUpdate for Record types with string index signatures
-// - Routes to UpdateNonArrayObject for regular objects
+// - Routes to UpdateRecord for Record types with string index signatures
+// - Routes to UpdateKnownKeys for regular objects with fixed keys
 // - WHERE predicate applies to the entire object
 type UpdateObject<T extends object> = (T extends readonly any[]
   ? UpdateArray<T>
   : string extends keyof T
-    ? RecordUpdate<T>
-    : UpdateNonArrayObject<T>) & {
+    ? UpdateRecord<T>
+    : UpdateKnownKeys<T>) & {
   [WHERE]?: (value: T, context?: Record<string, any>) => boolean;
   [DEFAULT]?: T;
   [CONTEXT]?: Record<string, any>;
