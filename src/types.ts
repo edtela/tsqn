@@ -62,27 +62,18 @@ type UpdateArray<T extends readonly any[]> = T extends readonly (infer E)[]
 // - Allows any string key for dynamic updates
 // - Supports value updates, functions, and deletions
 // - [ALL] updates all properties with the same value/function
-// - Special handling for 'any' value types for better ergonomics
-// - For Records, use the value type directly (not intersection)
+// - Uses the value type V directly (not intersection like AllValueType)
 type RecordUpdate<T> = T extends Record<string, infer V>
-  ? unknown extends V
-    ? {
-        // When value type is truly 'any' or unknown, allow any updates
-        [key: string]: any;
-      } & {
-        [ALL]?: any;
-      }
-    : {
-        // Normal Record handling with the actual value type V
-        [key: string]:
-          | Update<V>
-          | Delete
-          | UpdateFunction<V, T, string>;
-      } & {
-        [ALL]?:
-          | Update<V>
-          | UpdateFunction<V, T, string>;
-      }
+  ? {
+      [key: string]:
+        | Update<V>
+        | Delete
+        | UpdateFunction<V, T, string>;
+    } & {
+      [ALL]?:
+        | Update<V>
+        | UpdateFunction<V, T, string>;
+    }
   : never;
 
 // Update type for non-array objects with known keys
