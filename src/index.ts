@@ -10,7 +10,9 @@ export type {
   ChangeDetector,
   ChangeDetectorFn,
   Select,
-  SelectResult
+  SelectResult,
+  Delete,
+  Replace
 } from './types.js';
 
 // Export update, undo, and transaction functionality

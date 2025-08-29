@@ -10,6 +10,17 @@ type IsOptional<T, K extends keyof T> = {} extends Pick<T, K> ? true : false;
 // This ensures ALL only allows updates to properties common across all types
 type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
 
+// Function that transforms a value during update
+type UpdateFunction<TValue, TData, TKey = string> = 
+  (value: TValue, data: TData, key: TKey, ctx?: Record<string, any>) => Update<TValue>;
+
+// Deletion marker for removing optional properties
+export type Delete = [];
+
+// Full replacement syntax (distinguishes from partial updates)
+// Only for object types (including functions) that need bracket syntax
+export type Replace<T extends object> = [T];
+
 // Helper to get the value type for ALL operator
 // - For arrays: the element type
 // - For objects: intersection of all value types
@@ -24,68 +35,69 @@ type DeepPartial<T> = T extends readonly any[]
 export type DataChange<T> = UpdateResult<T>;
 
 // Terminal update types - for non-object values
-// - Functions can only be replaced using [T] syntax
-// - Other values can be direct assignment or replacement
-// - For unions containing objects, [T] syntax is allowed
+// - Functions can only be replaced using Replace<T> syntax
+// - Objects require Replace<T> syntax to distinguish from update statements
+// - Primitives can use direct assignment
+// - Mixed unions: each type follows its own rule
 type UpdateTerminal<T> = [T] extends [Function]
-  ? [T] // Functions must use replacement syntax
-  : Extract<T, object> extends never
-    ? T
-    : [T];
+  ? Replace<T>  // Pure functions must use replacement syntax
+  : T extends Function
+    ? Replace<T> | Exclude<T, Function>  // Function in union: function needs brackets, rest doesn't
+    : T extends object
+      ? Replace<T> | Exclude<T, object>   // Object in union: object needs brackets, primitives don't
+      : T;                                 // Pure primitives: direct assignment
 
 // Update type for arrays
-// - Allows partial updates by index (string keys)
+// - Allows partial updates by numeric index (positive and negative)
 // - Supports [ALL] to update all elements
 // - Each update can be a value or function
-type UpdateArray<T extends readonly any[]> = {
-  [index: string]: T extends readonly (infer E)[]
-    ? Update<E> | ((value: E, data: T, index: string, ctx?: Record<string, any>) => Update<E>)
-    : never;
-} & {
-  [ALL]?: T extends readonly (infer E)[]
-    ? Update<E> | ((value: E, data: T, index: number, ctx?: Record<string, any>) => Update<E>)
-    : never;
-};
+type UpdateArray<T extends readonly any[]> = T extends readonly (infer E)[]
+  ? {
+      [index: string]: Update<E> | UpdateFunction<E, T, number>;
+      [ALL]?: Update<E> | UpdateFunction<E, T, number>;
+    }
+  : never;
 
 // Update type for Record types with string index signatures
 // - Allows any string key for dynamic updates
 // - Supports value updates, functions, and deletions
 // - [ALL] updates all properties with the same value/function
 // - Special handling for 'any' value types for better ergonomics
-type RecordUpdate<T> = AllValueType<T> extends any
-  ? unknown extends AllValueType<T>
+// - For Records, use the value type directly (not intersection)
+type RecordUpdate<T> = T extends Record<string, infer V>
+  ? unknown extends V
     ? {
-        // When value type is truly 'any', allow any updates
+        // When value type is truly 'any' or unknown, allow any updates
         [key: string]: any;
       } & {
         [ALL]?: any;
       }
     : {
-        // Normal Record handling
+        // Normal Record handling with the actual value type V
         [key: string]:
-          | Update<AllValueType<T>>
-          | []
-          | ((value: AllValueType<T>, data: T, key: string, ctx?: Record<string, any>) => Update<AllValueType<T>>);
+          | Update<V>
+          | Delete
+          | UpdateFunction<V, T, string>;
       } & {
         [ALL]?:
-          | Update<AllValueType<T>>
-          | ((value: AllValueType<T>, data: T, key: string, ctx?: Record<string, any>) => Update<AllValueType<T>>);
+          | Update<V>
+          | UpdateFunction<V, T, string>;
       }
   : never;
 
 // Update type for non-array objects with known keys
 // - Each property can be updated with a value or function
-// - Optional properties can be deleted with []
+// - Optional properties can be deleted with Delete
 // - [ALL] updates all properties (type-safe intersection)
 type UpdateNonArrayObject<T extends object> = {
   [K in StringKeys<T>]?:
     | Update<T[K]>
-    | (IsOptional<T, K> extends true ? [] : never)
-    | ((value: T[K], data: T, key: K, ctx?: Record<string, any>) => Update<T[K]>);
+    | (IsOptional<T, K> extends true ? Delete : never)
+    | UpdateFunction<T[K], T, K>;
 } & {
   [ALL]?:
     | Update<AllValueType<T>>
-    | ((value: AllValueType<T>, data: T, key: keyof T, ctx?: Record<string, any>) => Update<AllValueType<T>>);
+    | UpdateFunction<AllValueType<T>, T, keyof T>;
 };
 
 // Update type for objects (arrays and non-arrays)
@@ -104,17 +116,25 @@ type UpdateObject<T extends object> = (T extends readonly any[]
 };
 
 // Main Update type
+// - Functions require Replace<T> syntax
 // - Routes to UpdateObject for objects (including null/undefined unions)
 // - Routes to UpdateTerminal for primitives
 // - Preserves null/undefined in unions
-// - Allows [T] replacement for object types
-export type Update<T> = [NonNullable<T>] extends [object]
-  ?
-      | (undefined extends T ? undefined : never)
-      | (null extends T ? null : never)
-      | UpdateObject<NonNullable<T>>
-      | [NonNullable<T>]
-  : UpdateTerminal<T>;
+// - Allows Replace<T> for object types
+// - Special handling for never, any, unknown
+export type Update<T> = [T] extends [never]
+  ? never  // never type stays never
+  : unknown extends T
+    ? any  // any type allows anything
+    : [NonNullable<T>] extends [Function]
+      ? Replace<NonNullable<T>>  // Functions must use replacement syntax
+      : [NonNullable<T>] extends [object]
+        ?
+            | (undefined extends T ? undefined : never)
+            | (null extends T ? null : never)
+            | UpdateObject<NonNullable<T>>
+            | Replace<NonNullable<T>>
+        : UpdateTerminal<T>;
 
 export type UpdateResult<T> = T extends readonly any[]
   ? {

@@ -22,7 +22,7 @@ function isArrayIndex(key: string): boolean {
 
 // Helper to check if value is a SelectTransform
 function isSelectTransform(value: any): value is SelectTransform {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 // Main transform function
@@ -48,14 +48,14 @@ export function transform(data: any, stmt: Transform): any {
   if (isSelectTransform(stmt)) {
     // If data is an array, distribute the SelectTransform
     if (Array.isArray(data)) {
-      return data.map(item => transform(item, stmt));
+      return data.map((item) => transform(item, stmt));
     }
-    
+
     const result: any = {};
-    
+
     for (const key in stmt) {
       const value = stmt[key];
-      
+
       if (value === true) {
         // Select the value as-is from data[key]
         if (data[key] !== undefined) {
@@ -104,7 +104,7 @@ export function transform(data: any, stmt: Transform): any {
         }
       }
     }
-    
+
     return result;
   }
 
@@ -118,7 +118,7 @@ export function transform(data: any, stmt: Transform): any {
     if (typeof stmt === "string") {
       // Check if it's a numeric string for array index access
       if (isArrayIndex(stmt)) {
-        return data[stmt];
+        return data[Number(stmt)];
       }
       // Non-numeric string - distribute across all elements
       return data.map((item) => transform(item, stmt));
@@ -132,3 +132,126 @@ export function transform(data: any, stmt: Transform): any {
 
   return undefined;
 }
+
+// Example types and data for testing
+type MenuItem = {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+  category: string;
+  available: boolean;
+  tags?: string[];
+};
+
+type MenuData = {
+  groups: Record<
+    string,
+    {
+      id: string;
+      name: string;
+      items: string[]; // Array of item IDs
+    }
+  >;
+  items: Record<string, MenuItem>;
+};
+
+const stmt = ["groups", "coffee", "items", ["items"]];
+
+const stmt2 = ["items", [["groups", "coffee", "items"]]];
+
+// Example data
+const exampleData: MenuData = {
+  groups: {
+    appetizers: {
+      id: "appetizers",
+      name: "Appetizers",
+      items: ["item1", "item2"],
+    },
+    mains: {
+      id: "mains",
+      name: "Main Courses",
+      items: ["item3", "item4", "item5"],
+    },
+    desserts: {
+      id: "desserts",
+      name: "Desserts",
+      items: ["item6"],
+    },
+  },
+  items: {
+    item1: {
+      id: "item1",
+      name: "Spring Rolls",
+      price: 8.99,
+      description: "Crispy vegetable spring rolls",
+      category: "appetizers",
+      available: true,
+      tags: ["vegetarian", "crispy"],
+    },
+    item2: {
+      id: "item2",
+      name: "Chicken Wings",
+      price: 12.99,
+      category: "appetizers",
+      available: true,
+      tags: ["spicy", "popular"],
+    },
+    item3: {
+      id: "item3",
+      name: "Grilled Salmon",
+      price: 24.99,
+      description: "Fresh Atlantic salmon with herbs",
+      category: "mains",
+      available: true,
+      tags: ["healthy", "gluten-free"],
+    },
+    item4: {
+      id: "item4",
+      name: "Beef Steak",
+      price: 32.99,
+      description: "Prime cut beef with sides",
+      category: "mains",
+      available: false,
+      tags: ["popular"],
+    },
+    item5: {
+      id: "item5",
+      name: "Pasta Carbonara",
+      price: 18.99,
+      description: "Classic Italian pasta",
+      category: "mains",
+      available: true,
+    },
+    item6: {
+      id: "item6",
+      name: "Chocolate Cake",
+      price: 7.99,
+      description: "Rich dark chocolate cake",
+      category: "desserts",
+      available: true,
+      tags: ["sweet", "popular"],
+    },
+  },
+};
+
+// Example transforms you can try:
+//
+// Get all item names:
+// transform(exampleData, ["items", "name"])
+//
+// Get appetizer group with just item names:
+// transform(exampleData, {
+//   appetizers: ["groups", "appetizers", {
+//     name: true,
+//     itemNames: ["items", ["groups", "appetizers", "items"], "name"]
+//   }]
+// })
+//
+// Get all available items with name and price:
+// transform(exampleData, {
+//   available: ["items", { name: true, price: true, available: true }]
+// })
+//
+// Get items by category:
+// transform(exampleData, ["groups", { name: true, items: true }])

@@ -75,8 +75,7 @@ export function updateImpl(data: any, statement?: any, changes?: any, context?: 
           return;
         }
 
-        console.error(`Can't partially update a non-object: ${key}`);
-        return;
+        throw Error(`Can't partially update a non-object: ${key}`);
       }
 
       const change = updateImpl(oldValue, newValue, changes ? changes[key] : undefined, context);
@@ -97,27 +96,39 @@ export function updateImpl(data: any, statement?: any, changes?: any, context?: 
 
   // Process each key in the expanded transform
   for (const key in staticUpdate) {
-    let oldValue = data[key];
+    // Handle numeric indices (including negative) for arrays
+    let actualKey = key;
+    if (Array.isArray(data)) {
+      // Check if key is numeric (positive or negative)
+      if (/^-?\d+$/.test(key)) {
+        const index = parseInt(key, 10);
+        actualKey = index < 0 ? String(data.length + index) : key;
+      } else if (key !== ALL.toString()) {
+        // Skip non-numeric keys for arrays (except ALL symbol)
+        continue;
+      }
+    }
 
+    let oldValue = data[actualKey];
     const operand = staticUpdate[key];
-    const staticOperand = typeof operand === "function" ? operand(oldValue, data, key, context) : operand;
+    const staticOperand = typeof operand === "function" ? operand(oldValue, data, actualKey, context) : operand;
 
     if (Array.isArray(staticOperand)) {
       if (staticOperand.length === 0) {
-        delete data[key];
-        addValueChange(key, oldValue);
+        delete data[actualKey];
+        addValueChange(actualKey, oldValue);
         continue;
       }
 
       if (staticOperand.length === 1) {
         //structured clone can still fail for functions within operand
         const newValue = typeof staticOperand[0] === "function" ? staticOperand[0] : structuredClone(staticOperand[0]);
-        updateKey(key, oldValue, newValue, true);
+        updateKey(actualKey, oldValue, newValue, true);
       } else {
         throw new Error("Multiple element arrays not allowed"); //TODO collect warning
       }
     } else {
-      updateKey(key, oldValue, staticOperand);
+      updateKey(actualKey, oldValue, staticOperand);
     }
   }
 
@@ -144,6 +155,31 @@ function undoImpl(data: any, result: any) {
   }
 }
 
+function mergeResults(result: UpdateResult<any>, changes: UpdateResult<any>) {
+  for (const key of Object.keys(changes)) {
+    if (key in result) {
+      const value = result[key];
+      const change = changes[key];
+
+      const meta = result[META]?.[key];
+      if (meta && meta.original === change) {
+        delete result[key];
+        //TODO delete meta
+        continue;
+      }
+
+      if (change == null || value === null || typeof change !== "object" || typeof value !== "object") {
+        result[key] = change;
+        continue;
+      }
+
+      mergeResults(value, change);
+    } else {
+      result[key] = changes[key];
+    }
+  }
+}
+
 export function transaction<T extends object>(data: T) {
   let changes: UpdateResult<T> | undefined;
 
@@ -165,3 +201,4 @@ export function transaction<T extends object>(data: T) {
     },
   };
 }
+
