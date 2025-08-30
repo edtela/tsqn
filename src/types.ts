@@ -6,6 +6,14 @@ type StringKeys<T> = Extract<keyof T, string>;
 // Helper type to check if a property is optional
 type IsOptional<T, K extends keyof T> = {} extends Pick<T, K> ? true : false;
 
+// Helper type to check if T is an object but not a function
+type IsObjectButNotFunction<T> = [T] extends [object] 
+  ? [T] extends [Function] ? false : true 
+  : false;
+
+// Helper to extract nullable parts of a union type
+type NullableParts<T> = (undefined extends T ? undefined : never) | (null extends T ? null : never);
+
 // Helper to convert union to intersection (for ALL operator)
 // This ensures ALL only allows updates to properties common across all types
 type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
@@ -106,26 +114,20 @@ type UpdateObject<T extends object> = (T extends readonly any[]
   [CONTEXT]?: Record<string, any>;
 };
 
-// Main Update type
-// - Functions require Replace<T> syntax
-// - Routes to UpdateObject for objects (including null/undefined unions)
-// - Routes to UpdateTerminal for primitives
+// Main Update type - Two-route model:
+// - Object route: arrays, plain objects, Records (via UpdateObject)  
+// - Non-object route: primitives, functions, mixed unions (via UpdateTerminal)
+// - Special handling for any, unknown, never
 // - Preserves null/undefined in unions
-// - Allows Replace<T> for object types
-// - Special handling for never, any, unknown
 export type Update<T> = [T] extends [never]
-  ? never  // never type stays never
-  : unknown extends T
-    ? any  // any type allows anything
-    : [NonNullable<T>] extends [Function]
-      ? Replace<NonNullable<T>>  // Functions must use replacement syntax
-      : [NonNullable<T>] extends [object]
-        ?
-            | (undefined extends T ? undefined : never)
-            | (null extends T ? null : never)
-            | UpdateObject<NonNullable<T>>
-            | Replace<NonNullable<T>>
-        : UpdateTerminal<T>;
+  ? never  // never stays never (avoids Replace<never> constraint issue)
+  : unknown extends T 
+    ? [T] extends [{}]
+      ? unknown  // unknown returns unknown (preserves type safety)
+      : any      // any returns any (preserves flexibility)
+    : IsObjectButNotFunction<NonNullable<T>> extends true
+      ? NullableParts<T> | UpdateObject<NonNullable<T>> | Replace<NonNullable<T>>
+      : UpdateTerminal<T>;  // Handles functions, primitives, and mixed unions
 
 export type UpdateResult<T> = T extends readonly any[]
   ? {
@@ -135,7 +137,8 @@ export type UpdateResult<T> = T extends readonly any[]
     }
   : {
       // For objects, use StringKeys as before
-      [K in StringKeys<T>]?: [T[K]] extends [object] ? UpdateResult<T[K]> : T[K];
+      // Handle optional properties correctly by checking NonNullable<T[K]>
+      [K in StringKeys<T>]?: [NonNullable<T[K]>] extends [object] ? UpdateResult<T[K]> : T[K];
     } & {
       [META]?: { [K in StringKeys<T>]?: UpdateResultMeta<T[K]> };
     };
