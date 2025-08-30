@@ -129,19 +129,46 @@ export type Update<T> = [T] extends [never]
       ? NullableParts<T> | UpdateObject<NonNullable<T>> | Replace<NonNullable<T>>
       : UpdateTerminal<T>;  // Handles functions, primitives, and mixed unions
 
-export type UpdateResult<T> = T extends readonly any[]
+// UpdateResult type for arrays
+type UpdateResultArray<T extends readonly any[]> = T extends readonly (infer E)[]
   ? {
-      // For arrays, allow any string key (including numeric indices)
-      [index: string]: T extends readonly (infer E)[] ? ([E] extends [object] ? UpdateResult<E> : E) : never;
-      [META]?: { [index: string]: T extends readonly (infer E)[] ? UpdateResultMeta<E> : never };
+      [index: string]: [E] extends [object] ? UpdateResult<E> : E;
+      [META]?: { [index: string]: UpdateResultMeta<E> };
     }
-  : {
-      // For objects, use StringKeys as before
-      // Handle optional properties correctly by checking NonNullable<T[K]>
-      [K in StringKeys<T>]?: [NonNullable<T[K]>] extends [object] ? UpdateResult<T[K]> : T[K];
-    } & {
-      [META]?: { [K in StringKeys<T>]?: UpdateResultMeta<T[K]> };
-    };
+  : never;
+
+// UpdateResult type for Record types with string index signatures
+type UpdateResultRecord<T> = T extends Record<string, infer V>
+  ? {
+      [key: string]: [V] extends [object] ? UpdateResult<V> : V;
+      [META]?: { [key: string]: UpdateResultMeta<V> };
+    }
+  : never;
+
+// UpdateResult type for objects with known/fixed keys
+type UpdateResultKnownKeys<T extends object> = {
+  [K in StringKeys<T>]?: [NonNullable<T[K]>] extends [object] ? UpdateResult<T[K]> : T[K];
+} & {
+  [META]?: { [K in StringKeys<T>]?: UpdateResultMeta<T[K]> };
+};
+
+// Helper to determine the base result type for an object
+type BaseResultType<T extends object> = T extends readonly any[]
+  ? UpdateResultArray<T>
+  : string extends keyof T
+    ? UpdateResultRecord<T>
+    : UpdateResultKnownKeys<T>;
+
+// Main UpdateResult type - matches Update's routing pattern
+export type UpdateResult<T> = [T] extends [never]
+  ? never
+  : unknown extends T
+    ? any  // Results of any/unknown updates are any
+    : [NonNullable<T>] extends [object]
+      ? undefined extends T
+        ? BaseResultType<NonNullable<T>> | undefined  // Handle optional objects
+        : BaseResultType<NonNullable<T>>  // Non-optional objects
+      : T;  // Primitives and functions return as-is
 
 export type UpdateResultMeta<T> = {
   original: T;
