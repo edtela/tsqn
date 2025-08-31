@@ -1,4 +1,7 @@
-import { ALL, WHERE, DEFAULT, CONTEXT, META } from "./symbols.js";
+import { 
+  ALL, WHERE, DEFAULT, CONTEXT, META,
+  LT, GT, LTE, GTE, EQ, NEQ, NOT, MATCH, SOME 
+} from "./symbols.js";
 
 // Helper type to extract only string keys from T
 type StringKeys<T> = Extract<keyof T, string>;
@@ -37,7 +40,11 @@ type AllValueType<T> = T extends readonly any[] ? T[number] : UnionToIntersectio
 type DeepPartial<T> = T extends readonly any[]
   ? T // Arrays remain arrays (just filtered)
   : T extends object
-    ? { [K in keyof T]?: DeepPartial<T[K]> }
+    ? string extends keyof T
+      ? T extends Record<string, infer V>
+        ? Record<string, DeepPartial<V>> // Record types get deep partial values
+        : T
+      : { [K in keyof T]?: DeepPartial<T[K]> } // Regular objects get partial
     : T;
 
 export type DataChange<T> = UpdateResult<T>;
@@ -109,7 +116,7 @@ type UpdateObject<T extends object> = (T extends readonly any[]
   : string extends keyof T
     ? UpdateRecord<T>
     : UpdateKnownKeys<T>) & {
-  [WHERE]?: (value: T, context?: Record<string, any>) => boolean;
+  [WHERE]?: ((value: T, context?: Record<string, any>) => boolean) | Predicate<T>;
   [DEFAULT]?: T;
   [CONTEXT]?: Record<string, any>;
 };
@@ -201,31 +208,86 @@ export type ChangeDetector<T> = T extends readonly any[]
     : never;
 
 //SELECT
-export type Select<T> = T extends readonly any[] ? ArraySelect<T> : T extends object ? ObjectSelect<T> : never;
+export type Select<T> = T extends readonly any[] ? SelectArray<T> : T extends object ? SelectObject<T> : never;
 
-type ArraySelect<T extends readonly any[]> = T extends readonly (infer E)[]
+type SelectArray<T extends readonly any[]> = T extends readonly (infer E)[]
   ? {
       [key: string]: boolean | Select<E>;
-      [WHERE]?: (value: E) => boolean;
+      [WHERE]?: ((value: E) => boolean) | Predicate<E>;
       [ALL]?: boolean | Select<E>;
     }
   : never;
 
-type ObjectSelect<T extends object> = string extends keyof T
-  ? RecordSelect<T> // Has string index signature
-  : KnownKeysSelect<T>; // Regular object
+type SelectObject<T extends object> = string extends keyof T
+  ? SelectRecord<T> // Has string index signature
+  : SelectKnownKeys<T>; // Regular object
 
-type RecordSelect<T> = {
+type SelectRecord<T> = {
   [key: string]: boolean | Select<AllValueType<T>>;
-  [WHERE]?: (value: T) => boolean;
+  [WHERE]?: ((value: T) => boolean) | Predicate<T>;
   [ALL]?: boolean | Select<AllValueType<T>>;
 };
 
-type KnownKeysSelect<T extends object> = {
+type SelectKnownKeys<T extends object> = {
   [K in StringKeys<T>]?: boolean | Select<T[K]>;
 } & {
-  [WHERE]?: (value: T) => boolean;
+  [WHERE]?: ((value: T) => boolean) | Predicate<T>;
   [ALL]?: boolean | Select<AllValueType<T>>;
 };
 
 export type SelectResult<T> = DeepPartial<T>;
+
+// PREDICATES
+
+// Base AND predicates - type-specific operations that naturally combine with AND
+type AndPredicate<T> = T extends readonly any[]
+  ? {
+      // Array-specific predicates (no direct array matching - arrays are for OR)
+      [index: string]: Predicate<T[number]>;
+      [ALL]?: Predicate<T[number]>;
+      [SOME]?: Predicate<T[number]>;
+      [EQ]?: T | null;
+      [NEQ]?: T | null;
+    }
+  : T extends object
+    ? (
+        | T  // Direct object matching
+        | ({
+            // Object-specific predicates
+            [K in StringKeys<T>]?: Predicate<T[K]>;
+          } & {
+            [ALL]?: Predicate<AllValueType<T>>;
+            [SOME]?: Predicate<AllValueType<T>>;
+            [EQ]?: T | null;
+            [NEQ]?: T | null;
+          })
+      )
+    : // Primitive predicates - combine all operations
+      | T  // Direct value
+      | {
+          [EQ]?: T | null;
+          [NEQ]?: T | null;
+          [LT]?: T;
+          [GT]?: T;
+          [LTE]?: T;
+          [GTE]?: T;
+          [MATCH]?: T extends string ? string : never;
+        };
+
+// Logical NOT predicate
+type NotPredicate<T> = {
+  [NOT]?: Predicate<T>;
+};
+
+// Logical OR predicate (arrays)
+type OrPredicate<T> = Predicate<T>[];
+
+// Main Predicate type with boolean logic operations
+export type Predicate<T> = [T] extends [never]
+  ? never
+  : unknown extends T
+    ? any  // Predicate for unknown is any
+    : (
+        | (AndPredicate<NonNullable<T>> & NotPredicate<NonNullable<T>>)  // AND with optional NOT
+        | OrPredicate<NonNullable<T>>                                     // OR
+      ) | NullableParts<T>;  // Allow null/undefined for nullable types

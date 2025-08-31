@@ -121,6 +121,39 @@ describe("Record type updates", () => {
   });
 
   describe("ALL operator on Record types", () => {
+    it("should work with nested Record and mixed union values", () => {
+      // Test case: Record with values that are string | object unions
+      type Data = {
+        items: Record<string, { name: string | { en: string } }>;
+      };
+
+      const data: Data = {
+        items: {
+          item1: { name: "First Item" },
+          item2: { name: { en: "Second Item" } },
+          item3: { name: "Third Item" },
+        },
+      };
+
+      // Update all items' names to a string
+      const changes = update(data, {
+        items: {
+          [ALL]: { name: "Updated" },
+        },
+      });
+
+      expect(changes.items).toEqual({
+        item1: { name: "Updated", [META]: { name: { original: "First Item" } } },
+        item2: { name: "Updated", [META]: { name: { original: { en: "Second Item" } } } },
+        item3: { name: "Updated", [META]: { name: { original: "Third Item" } } },
+      });
+
+      // Verify the data was updated
+      expect(data.items.item1.name).toBe("Updated");
+      expect(data.items.item2.name).toBe("Updated");
+      expect(data.items.item3.name).toBe("Updated");
+    });
+
     it("should update all existing keys with same value", () => {
       const data: Record<string, number> = {
         a: 1,

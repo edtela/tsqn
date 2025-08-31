@@ -145,6 +145,18 @@ type MixedRecord = Update<Record<string, string | { value: number }>>;
 type TestMixedRecordString = Expect<IsAssignable<{ key: string }, MixedRecord>>;
 type TestMixedRecordObject = Expect<IsAssignable<{ key: [{ value: number }] }, MixedRecord>>;
 
+// Nested Record with mixed union values and ALL operator
+type NestedRecordData = {
+  items: Record<string, { name: string | { en: string } }>;
+};
+type NestedRecordUpdate = Update<NestedRecordData>;
+
+// Test that ALL operator works with nested Records containing mixed unions
+type TestNestedRecordAll = Expect<IsAssignable<
+  { items: { [ALL]: { name: string } } },
+  NestedRecordUpdate
+>>;
+
 // ============================================
 // UpdateResult Tests
 // ============================================

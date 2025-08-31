@@ -1,5 +1,6 @@
 import { ALL, WHERE, DEFAULT, CONTEXT, META } from "./symbols.js";
 import type { Update, UpdateResult } from "./types.js";
+import { evalPredicate } from "./predicate.js";
 
 export function update<T extends object>(d: T, u?: Update<T>, c?: UpdateResult<T>): UpdateResult<T> | undefined {
   return updateImpl(d, u, c);
@@ -15,8 +16,15 @@ export function updateImpl(data: any, statement?: any, changes?: any, context?: 
     context = context ? { ...context, ...vars } : vars;
   }
 
-  if (where && !where(data, context)) {
-    return changes;
+  if (where) {
+    // Check if it's a function or a predicate
+    const whereResult = typeof where === 'function' 
+      ? where(data, context)
+      : evalPredicate(data, where);
+    
+    if (!whereResult) {
+      return changes;
+    }
   }
 
   if (all) {
@@ -63,8 +71,14 @@ export function updateImpl(data: any, statement?: any, changes?: any, context?: 
       if (oldValue == null || typeof oldValue !== "object") {
         //check the where statement before throwing error
         const where = newValue[WHERE];
-        if (where && !where(oldValue, context)) {
-          return;
+        if (where) {
+          const whereResult = typeof where === 'function'
+            ? where(oldValue, context)
+            : evalPredicate(oldValue, where);
+          
+          if (!whereResult) {
+            return;
+          }
         }
 
         const defaultValue = newValue[DEFAULT];

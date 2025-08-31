@@ -1,5 +1,6 @@
 import { ALL, WHERE } from "./symbols.js";
 import { Select, SelectResult } from "./types.js";
+import { evalPredicate } from "./predicate.js";
 
 export function select<T>(data: T, stmt: Select<T>): SelectResult<T> | undefined {
   const result = selectImpl(data, stmt);
@@ -10,8 +11,15 @@ const NO_RESULT = Symbol();
 export function selectImpl(data: any, stmt: Select<any>): SelectResult<any> | typeof NO_RESULT {
   const { [ALL]: all, [WHERE]: where, ...rest } = stmt;
 
-  if (where && !where(data)) {
-    return NO_RESULT;
+  if (where) {
+    // Check if it's a function or a predicate
+    const whereResult = typeof where === 'function'
+      ? where(data)
+      : evalPredicate(data, where);
+    
+    if (!whereResult) {
+      return NO_RESULT;
+    }
   }
 
   if (data == null || typeof data !== "object") {

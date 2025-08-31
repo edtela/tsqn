@@ -1,5 +1,8 @@
 // Export symbols
-export { ALL, WHERE, DEFAULT, CONTEXT, META } from './symbols.js';
+export { 
+  ALL, WHERE, DEFAULT, CONTEXT, META,
+  LT, GT, LTE, GTE, EQ, NEQ, NOT, MATCH, SOME
+} from './symbols.js';
 
 // Export types
 export type {
@@ -12,7 +15,8 @@ export type {
   Select,
   SelectResult,
   Delete,
-  Replace
+  Replace,
+  Predicate
 } from './types.js';
 
 // Export update, undo, and transaction functionality
@@ -23,3 +27,6 @@ export { select } from './select.js';
 
 // Export change detection
 export { hasChanges, anyChange, typeChange } from './change-detection.js';
+
+// Export predicate functionality
+export { evalPredicate } from './predicate.js';
