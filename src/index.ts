@@ -30,3 +30,6 @@ export { hasChanges, anyChange, typeChange } from './change-detection.js';
 
 // Export predicate functionality
 export { evalPredicate } from './predicate.js';
+
+// Export serialization functionality
+export { toJSON, fromJSON, SerializationError, validateNoFunctions } from './serialization.js';
