@@ -9,7 +9,7 @@ export function select<T>(data: T, stmt: Select<T>): SelectResult<T> | undefined
 
 const NO_RESULT = Symbol();
 export function selectImpl(data: any, stmt: Select<any>): SelectResult<any> | typeof NO_RESULT {
-  const { [DEEP_ALL]: deepAll, [ALL]: all, [WHERE]: where, ...rest } = stmt;
+  const { [DEEP_ALL]: deepAll, [ALL]: all, [WHERE]: where, ...rest } = stmt as any;
 
   // Handle DEEP_ALL operator
   if (deepAll !== undefined) {

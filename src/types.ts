@@ -207,12 +207,9 @@ export type ChangeDetector<T> = T extends readonly any[]
     ? ObjectChangeDetector<T>
     : never;
 
-//SELECT
+//SELECT  
 export type SelectPrimitive<T> = {
-  [key: string]: any; // Allow string indexing for compatibility
-  [WHERE]?: ((value: T) => boolean) | Predicate<T>;
-  [ALL]?: never;
-  [DEEP_ALL]?: never;
+  [WHERE]: ((value: T) => boolean) | Predicate<T>;
 };
 
 export type Select<T> = T extends readonly any[] ? SelectArray<T> : T extends object ? SelectObject<T> : SelectPrimitive<T>;
