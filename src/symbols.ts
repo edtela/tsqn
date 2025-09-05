@@ -1,5 +1,6 @@
 // Define symbols for operations
 export const ALL = Symbol("*"); // Apply update to all properties
+export const DEEP_ALL = Symbol("**"); // Deep recursive all - apply at any depth
 export const WHERE = Symbol("?"); // Conditional filter for updates
 export const DEFAULT = Symbol("{}"); // Default value for null fields
 export const CONTEXT = Symbol("$"); // Context variables

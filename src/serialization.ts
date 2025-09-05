@@ -9,7 +9,7 @@
  */
 
 import { 
-  ALL, WHERE, DEFAULT, CONTEXT, META,
+  ALL, DEEP_ALL, WHERE, DEFAULT, CONTEXT, META,
   LT, GT, LTE, GTE, EQ, NEQ, NOT, MATCH, SOME 
 } from './symbols.js';
 
@@ -28,6 +28,7 @@ export class SerializationError extends Error {
  */
 const symbolToString = new Map<symbol, string>([
   [ALL, "*"],
+  [DEEP_ALL, "**"],
   [WHERE, "?"],
   [DEFAULT, "{}"],
   [CONTEXT, "$"],

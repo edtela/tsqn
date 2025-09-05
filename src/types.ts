@@ -1,5 +1,5 @@
 import { 
-  ALL, WHERE, DEFAULT, CONTEXT, META,
+  ALL, DEEP_ALL, WHERE, DEFAULT, CONTEXT, META,
   LT, GT, LTE, GTE, EQ, NEQ, NOT, MATCH, SOME 
 } from "./symbols.js";
 
@@ -215,6 +215,7 @@ type SelectArray<T extends readonly any[]> = T extends readonly (infer E)[]
       [key: string]: boolean | Select<E>;
       [WHERE]?: ((value: E) => boolean) | Predicate<E>;
       [ALL]?: boolean | Select<E>;
+      [DEEP_ALL]?: boolean | Select<any>;
     }
   : never;
 
@@ -226,6 +227,7 @@ type SelectRecord<T> = {
   [key: string]: boolean | Select<AllValueType<T>>;
   [WHERE]?: ((value: T) => boolean) | Predicate<T>;
   [ALL]?: boolean | Select<AllValueType<T>>;
+  [DEEP_ALL]?: boolean | Select<any>;
 };
 
 type SelectKnownKeys<T extends object> = {
@@ -233,6 +235,7 @@ type SelectKnownKeys<T extends object> = {
 } & {
   [WHERE]?: ((value: T) => boolean) | Predicate<T>;
   [ALL]?: boolean | Select<AllValueType<T>>;
+  [DEEP_ALL]?: boolean | Select<any>;
 };
 
 export type SelectResult<T> = DeepPartial<T>;
