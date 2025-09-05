@@ -208,7 +208,14 @@ export type ChangeDetector<T> = T extends readonly any[]
     : never;
 
 //SELECT
-export type Select<T> = T extends readonly any[] ? SelectArray<T> : T extends object ? SelectObject<T> : never;
+export type SelectPrimitive<T> = {
+  [key: string]: any; // Allow string indexing for compatibility
+  [WHERE]?: ((value: T) => boolean) | Predicate<T>;
+  [ALL]?: never;
+  [DEEP_ALL]?: never;
+};
+
+export type Select<T> = T extends readonly any[] ? SelectArray<T> : T extends object ? SelectObject<T> : SelectPrimitive<T>;
 
 type SelectArray<T extends readonly any[]> = T extends readonly (infer E)[]
   ? {
