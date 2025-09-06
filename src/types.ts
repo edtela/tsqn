@@ -1,6 +1,19 @@
-import { 
-  ALL, DEEP_ALL, WHERE, DEFAULT, CONTEXT, META,
-  LT, GT, LTE, GTE, EQ, NEQ, NOT, MATCH, SOME 
+import {
+  ALL,
+  DEEP_ALL,
+  WHERE,
+  DEFAULT,
+  CONTEXT,
+  META,
+  LT,
+  GT,
+  LTE,
+  GTE,
+  EQ,
+  NEQ,
+  NOT,
+  MATCH,
+  SOME,
 } from "./symbols.js";
 
 // Helper type to extract only string keys from T
@@ -10,9 +23,7 @@ type StringKeys<T> = Extract<keyof T, string>;
 type IsOptional<T, K extends keyof T> = {} extends Pick<T, K> ? true : false;
 
 // Helper type to check if T is an object but not a function
-type IsObjectButNotFunction<T> = [T] extends [object] 
-  ? [T] extends [Function] ? false : true 
-  : false;
+type IsObjectButNotFunction<T> = [T] extends [object] ? ([T] extends [Function] ? false : true) : false;
 
 // Helper to extract nullable parts of a union type
 type NullableParts<T> = (undefined extends T ? undefined : never) | (null extends T ? null : never);
@@ -22,8 +33,12 @@ type NullableParts<T> = (undefined extends T ? undefined : never) | (null extend
 type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
 
 // Function that transforms a value during update
-type UpdateFunction<TValue, TData, TKey = string> = 
-  (value: TValue, data: TData, key: TKey, ctx?: Record<string, any>) => Update<TValue>;
+type UpdateFunction<TValue, TData, TKey = string> = (
+  value: TValue,
+  data: TData,
+  key: TKey,
+  ctx?: Record<string, any>,
+) => Update<TValue>;
 
 // Deletion marker for removing optional properties
 export type Delete = [];
@@ -55,12 +70,12 @@ export type DataChange<T> = UpdateResult<T>;
 // - Primitives can use direct assignment
 // - Mixed unions: each type follows its own rule
 type UpdateTerminal<T> = [T] extends [Function]
-  ? Replace<T>  // Pure functions must use replacement syntax
+  ? Replace<T> // Pure functions must use replacement syntax
   : T extends Function
-    ? Replace<T> | Exclude<T, Function>  // Function in union: function needs brackets, rest doesn't
+    ? Replace<T> | Exclude<T, Function> // Function in union: function needs brackets, rest doesn't
     : T extends object
-      ? Replace<T> | Exclude<T, object>   // Object in union: object needs brackets, primitives don't
-      : T;                                 // Pure primitives: direct assignment
+      ? Replace<T> | Exclude<T, object> // Object in union: object needs brackets, primitives don't
+      : T; // Pure primitives: direct assignment
 
 // Update type for arrays
 // - Allows partial updates by numeric index (positive and negative)
@@ -78,32 +93,23 @@ type UpdateArray<T extends readonly any[]> = T extends readonly (infer E)[]
 // - Supports value updates, functions, and deletions
 // - [ALL] updates all properties with the same value/function
 // - Uses the value type V directly (not intersection like AllValueType)
-type UpdateRecord<T> = T extends Record<string, infer V>
-  ? {
-      [key: string]:
-        | Update<V>
-        | Delete
-        | UpdateFunction<V, T, string>;
-    } & {
-      [ALL]?:
-        | Update<V>
-        | UpdateFunction<V, T, string>;
-    }
-  : never;
+type UpdateRecord<T> =
+  T extends Record<string, infer V>
+    ? {
+        [key: string]: Update<V> | Delete | UpdateFunction<V, T, string>;
+      } & {
+        [ALL]?: Update<V> | UpdateFunction<V, T, string>;
+      }
+    : never;
 
 // Update type for objects with known/fixed keys (not index signatures)
 // - Each property can be updated with a value or function
 // - Optional properties can be deleted with Delete
 // - [ALL] updates all properties (type-safe intersection)
 type UpdateKnownKeys<T extends object> = {
-  [K in StringKeys<T>]?:
-    | Update<T[K]>
-    | (IsOptional<T, K> extends true ? Delete : never)
-    | UpdateFunction<T[K], T, K>;
+  [K in StringKeys<T>]?: Update<T[K]> | (IsOptional<T, K> extends true ? Delete : never) | UpdateFunction<T[K], T, K>;
 } & {
-  [ALL]?:
-    | Update<AllValueType<T>>
-    | UpdateFunction<AllValueType<T>, T, keyof T>;
+  [ALL]?: Update<AllValueType<T>> | UpdateFunction<AllValueType<T>, T, keyof T>;
 };
 
 // Update type for objects (arrays and non-arrays)
@@ -122,19 +128,19 @@ type UpdateObject<T extends object> = (T extends readonly any[]
 };
 
 // Main Update type - Two-route model:
-// - Object route: arrays, plain objects, Records (via UpdateObject)  
+// - Object route: arrays, plain objects, Records (via UpdateObject)
 // - Non-object route: primitives, functions, mixed unions (via UpdateTerminal)
 // - Special handling for any, unknown, never
 // - Preserves null/undefined in unions
 export type Update<T> = [T] extends [never]
-  ? never  // never stays never (avoids Replace<never> constraint issue)
-  : unknown extends T 
+  ? never // never stays never (avoids Replace<never> constraint issue)
+  : unknown extends T
     ? [T] extends [{}]
-      ? unknown  // unknown returns unknown (preserves type safety)
-      : any      // any returns any (preserves flexibility)
+      ? unknown // unknown returns unknown (preserves type safety)
+      : any // any returns any (preserves flexibility)
     : IsObjectButNotFunction<NonNullable<T>> extends true
       ? NullableParts<T> | UpdateObject<NonNullable<T>> | Replace<NonNullable<T>>
-      : UpdateTerminal<T>;  // Handles functions, primitives, and mixed unions
+      : UpdateTerminal<T>; // Handles functions, primitives, and mixed unions
 
 // UpdateResult type for arrays
 type UpdateResultArray<T extends readonly any[]> = T extends readonly (infer E)[]
@@ -145,12 +151,13 @@ type UpdateResultArray<T extends readonly any[]> = T extends readonly (infer E)[
   : never;
 
 // UpdateResult type for Record types with string index signatures
-type UpdateResultRecord<T> = T extends Record<string, infer V>
-  ? {
-      [key: string]: [V] extends [object] ? UpdateResult<V> : V;
-      [META]?: { [key: string]: UpdateResultMeta<V> };
-    }
-  : never;
+type UpdateResultRecord<T> =
+  T extends Record<string, infer V>
+    ? {
+        [key: string]: [V] extends [object] ? UpdateResult<V> : V;
+        [META]?: { [key: string]: UpdateResultMeta<V> };
+      }
+    : never;
 
 // UpdateResult type for objects with known/fixed keys
 type UpdateResultKnownKeys<T extends object> = {
@@ -170,12 +177,12 @@ type BaseResultType<T extends object> = T extends readonly any[]
 export type UpdateResult<T> = [T] extends [never]
   ? never
   : unknown extends T
-    ? any  // Results of any/unknown updates are any
+    ? any // Results of any/unknown updates are any
     : [NonNullable<T>] extends [object]
       ? undefined extends T
-        ? BaseResultType<NonNullable<T>> | undefined  // Handle optional objects
-        : BaseResultType<NonNullable<T>>  // Non-optional objects
-      : T;  // Primitives and functions return as-is
+        ? BaseResultType<NonNullable<T>> | undefined // Handle optional objects
+        : BaseResultType<NonNullable<T>> // Non-optional objects
+      : T; // Primitives and functions return as-is
 
 export type UpdateResultMeta<T> = {
   original: T;
@@ -207,19 +214,23 @@ export type ChangeDetector<T> = T extends readonly any[]
     ? ObjectChangeDetector<T>
     : never;
 
-//SELECT  
+//SELECT
 export type SelectPrimitive<T> = {
   [WHERE]: ((value: T) => boolean) | Predicate<T>;
 };
 
-export type Select<T> = T extends readonly any[] ? SelectArray<T> : T extends object ? SelectObject<T> : SelectPrimitive<T>;
+export type Select<T> = T extends readonly any[]
+  ? SelectArray<T>
+  : T extends object
+    ? SelectObject<T>
+    : SelectPrimitive<T>;
 
 type SelectArray<T extends readonly any[]> = T extends readonly (infer E)[]
   ? {
       [key: string]: boolean | Select<E>;
       [WHERE]?: ((value: E) => boolean) | Predicate<E>;
       [ALL]?: boolean | Select<E>;
-      [DEEP_ALL]?: boolean | Select<any>;
+      [DEEP_ALL]?: Select<any>;
     }
   : never;
 
@@ -231,7 +242,7 @@ type SelectRecord<T> = {
   [key: string]: boolean | Select<AllValueType<T>>;
   [WHERE]?: ((value: T) => boolean) | Predicate<T>;
   [ALL]?: boolean | Select<AllValueType<T>>;
-  [DEEP_ALL]?: boolean | Select<any>;
+  [DEEP_ALL]?: Select<any>;
 };
 
 type SelectKnownKeys<T extends object> = {
@@ -239,7 +250,7 @@ type SelectKnownKeys<T extends object> = {
 } & {
   [WHERE]?: ((value: T) => boolean) | Predicate<T>;
   [ALL]?: boolean | Select<AllValueType<T>>;
-  [DEEP_ALL]?: boolean | Select<any>;
+  [DEEP_ALL]?: Select<any>;
 };
 
 export type SelectResult<T> = DeepPartial<T>;
@@ -257,8 +268,8 @@ type AndPredicate<T> = T extends readonly any[]
       [NEQ]?: T | null;
     }
   : T extends object
-    ? (
-        | T  // Direct object matching
+    ?
+        | T // Direct object matching
         | ({
             // Object-specific predicates
             [K in StringKeys<T>]?: Predicate<T[K]>;
@@ -268,18 +279,17 @@ type AndPredicate<T> = T extends readonly any[]
             [EQ]?: T | null;
             [NEQ]?: T | null;
           })
-      )
     : // Primitive predicates - combine all operations
-      | T  // Direct value
-      | {
-          [EQ]?: T | null;
-          [NEQ]?: T | null;
-          [LT]?: T;
-          [GT]?: T;
-          [LTE]?: T;
-          [GTE]?: T;
-          [MATCH]?: T extends string ? string : never;
-        };
+      | T // Direct value
+        | {
+            [EQ]?: T | null;
+            [NEQ]?: T | null;
+            [LT]?: T;
+            [GT]?: T;
+            [LTE]?: T;
+            [GTE]?: T;
+            [MATCH]?: T extends string ? string : never;
+          };
 
 // Logical NOT predicate
 type NotPredicate<T> = {
@@ -293,8 +303,10 @@ type OrPredicate<T> = Predicate<T>[];
 export type Predicate<T> = [T] extends [never]
   ? never
   : unknown extends T
-    ? any  // Predicate for unknown is any
-    : (
-        | (AndPredicate<NonNullable<T>> & NotPredicate<NonNullable<T>>)  // AND with optional NOT
-        | OrPredicate<NonNullable<T>>                                     // OR
-      ) | NullableParts<T>;  // Allow null/undefined for nullable types
+    ? any // Predicate for unknown is any
+    :
+        | (
+            | (AndPredicate<NonNullable<T>> & NotPredicate<NonNullable<T>>) // AND with optional NOT
+            | OrPredicate<NonNullable<T>>
+          ) // OR
+        | NullableParts<T>; // Allow null/undefined for nullable types

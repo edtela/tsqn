@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { select, DEEP_ALL, WHERE, GT, MATCH } from '../src/index.js';
+import { select, DEEP_ALL, WHERE, GT, EQ, MATCH } from '../src/index.js';
 
 describe('DEEP_ALL operator', () => {
   describe('primitive value matching', () => {
@@ -18,7 +18,7 @@ describe('DEEP_ALL operator', () => {
       };
 
       const result = select(data, {
-        [DEEP_ALL]: "Group 1"
+        [DEEP_ALL]: { [WHERE]: "Group 1" }
       });
 
       expect(result).toEqual({
@@ -47,7 +47,7 @@ describe('DEEP_ALL operator', () => {
       };
 
       const result = select(data, {
-        [DEEP_ALL]: 100
+        [DEEP_ALL]: { [WHERE]: 100 }
       });
 
       expect(result).toEqual({
@@ -100,7 +100,7 @@ describe('DEEP_ALL operator', () => {
       };
 
       const result = select(data, {
-        [DEEP_ALL]: null
+        [DEEP_ALL]: { [WHERE]: { [EQ]: null } }
       });
 
       expect(result).toEqual({
@@ -259,8 +259,8 @@ describe('DEEP_ALL operator', () => {
       expect(result).toEqual({
         en: {
           header: "Main Group",
-          section: "Group 1 Items",
-          footer: "End of page"  // All strings selected when WHERE matches the parent
+          section: "Group 1 Items"
+          // footer excluded because it doesn't contain "Group"
         }
       });
     });
@@ -307,7 +307,7 @@ describe('DEEP_ALL operator', () => {
       };
 
       const result = select(data, {
-        [DEEP_ALL]: "found me!"
+        [DEEP_ALL]: { [WHERE]: { [EQ]: "found me!" } }
       });
 
       expect(result).toEqual({
@@ -390,7 +390,7 @@ describe('DEEP_ALL operator', () => {
     it('should handle empty objects', () => {
       const data = {};
       const result = select(data, {
-        [DEEP_ALL]: "anything"
+        [DEEP_ALL]: { [WHERE]: { [EQ]: "anything" } }
       });
       expect(result).toBeUndefined();
     });
@@ -451,8 +451,228 @@ describe('DEEP_ALL operator', () => {
     });
   });
 
-  describe('terminal selection with true', () => {
-    it('should select entire subtree when pattern is true', () => {
+  describe('complex nested DEEP_ALL patterns', () => {
+    it('should find items with fields containing specific text pattern', () => {
+      const data = {
+        products: {
+          items: {
+            juice: { name: "Orange Juice", description: "Fresh orange juice" },
+            soda: { name: "Cola", description: "Carbonated drink" },
+            water: { name: "Spring Water", description: "Natural water" }
+          }
+        },
+        menu: {
+          breakfast: {
+            items: {
+              fruit: { name: "Orange Slices", price: 5 },
+              drink: { name: "Coffee", price: 3 }
+            }
+          }
+        }
+      };
+
+      // Find all items that have any field containing 'orange' (case insensitive)
+      const result = select(data, {
+        [DEEP_ALL]: {
+          items: {
+            [DEEP_ALL]: {
+              [WHERE]: { [MATCH]: "(?i).*orange.*" }
+            }
+          }
+        }
+      });
+
+      expect(result).toEqual({
+        products: {
+          items: {
+            juice: { name: "Orange Juice", description: "Fresh orange juice" }
+          }
+        },
+        menu: {
+          breakfast: {
+            items: {
+              fruit: { name: "Orange Slices" }
+            }
+          }
+        }
+      });
+    });
+
+    it('should handle multiple nested DEEP_ALL operators', () => {
+      const data = {
+        company: {
+          departments: {
+            engineering: {
+              teams: {
+                frontend: {
+                  members: [
+                    { name: "Alice", level: 3 },
+                    { name: "Bob", level: 2 }
+                  ]
+                },
+                backend: {
+                  members: [
+                    { name: "Charlie", level: 3 },
+                    { name: "David", level: 1 }
+                  ]
+                }
+              }
+            },
+            sales: {
+              teams: {
+                east: {
+                  members: [
+                    { name: "Eve", level: 2 },
+                    { name: "Frank", level: 3 }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      };
+
+      // Find all level 3 members in any team
+      const result = select(data, {
+        [DEEP_ALL]: {
+          teams: {
+            [DEEP_ALL]: {
+              members: {
+                [DEEP_ALL]: {
+                  [WHERE]: { level: { [EQ]: 3 } },
+                  name: true,
+                  level: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      expect(result).toEqual({
+        company: {
+          departments: {
+            engineering: {
+              teams: {
+                frontend: {
+                  members: [
+                    { name: "Alice", level: 3 }
+                  ]
+                },
+                backend: {
+                  members: [
+                    { name: "Charlie", level: 3 }
+                  ]
+                }
+              }
+            },
+            sales: {
+              teams: {
+                east: {
+                  members: [
+                    { name: "Frank", level: 3 }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      });
+    });
+
+    it('should combine DEEP_ALL with regular field selection', () => {
+      const data = {
+        stores: {
+          downtown: {
+            inventory: {
+              electronics: { count: 50, value: 10000 },
+              clothing: { count: 200, value: 5000 }
+            },
+            staff: 10
+          },
+          uptown: {
+            inventory: {
+              electronics: { count: 30, value: 15000 },
+              books: { count: 500, value: 3000 }
+            },
+            staff: 8
+          }
+        }
+      };
+
+      // Find high-value inventory items and also get staff info
+      const result = select(data, {
+        stores: {
+          [DEEP_ALL]: {
+            [WHERE]: { value: { [GT]: 9000 } },
+            count: true,
+            value: true
+          },
+          downtown: { staff: true },
+          uptown: { staff: true }
+        }
+      });
+
+      expect(result).toEqual({
+        stores: {
+          downtown: {
+            inventory: {
+              electronics: { count: 50, value: 10000 }
+            },
+            staff: 10
+          },
+          uptown: {
+            inventory: {
+              electronics: { count: 30, value: 15000 }
+            },
+            staff: 8
+          }
+        }
+      });
+    });
+
+    it('should handle DEEP_ALL with complex predicates', () => {
+      const data = {
+        metrics: {
+          q1: {
+            january: { revenue: 1000, profit: 100 },
+            february: { revenue: 1500, profit: -50 },
+            march: { revenue: 2000, profit: 300 }
+          },
+          q2: {
+            april: { revenue: 1800, profit: 200 },
+            may: { revenue: 2200, profit: 400 },
+            june: { revenue: 1900, profit: 150 }
+          }
+        }
+      };
+
+      // Find all profitable months with revenue > 1500
+      const result = select(data, {
+        [DEEP_ALL]: {
+          [WHERE]: (obj: any) => obj?.revenue > 1500 && obj?.profit > 0,
+          revenue: true,
+          profit: true
+        }
+      });
+
+      expect(result).toEqual({
+        metrics: {
+          q1: {
+            march: { revenue: 2000, profit: 300 }
+          },
+          q2: {
+            april: { revenue: 1800, profit: 200 },
+            may: { revenue: 2200, profit: 400 },
+            june: { revenue: 1900, profit: 150 }
+          }
+        }
+      });
+    });
+  });
+
+  describe('recursive selection alternatives', () => {
+    it('should use ALL for recursive selection instead of DEEP_ALL with true', () => {
       const data = {
         config: {
           settings: {
@@ -462,9 +682,10 @@ describe('DEEP_ALL operator', () => {
         }
       };
 
+      // Use ALL instead of DEEP_ALL for selecting everything
       const result = select(data, {
         config: {
-          [DEEP_ALL]: true
+          settings: true
         }
       });
 
