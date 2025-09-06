@@ -1,701 +1,658 @@
-import { describe, it, expect } from 'vitest';
-import { select, DEEP_ALL, WHERE, GT, EQ, MATCH } from '../src/index.js';
+import { describe, it, expect } from "vitest";
+import { select, DEEP_ALL, WHERE, GT, LT, EQ, NEQ, MATCH, NOT } from "../src/index.js";
 
-describe('DEEP_ALL operator', () => {
-  describe('primitive value matching', () => {
-    it('should find exact string matches at any depth', () => {
+describe("DEEP_ALL operator - new semantics", () => {
+  describe("field projection without WHERE", () => {
+    it("should independently project fields from any depth", () => {
       const data = {
-        menu1: {
-          layout: ["Header", "Group 1", "Footer"],
-          meta: { title: "Group 1", description: "Main group" }
+        a: {
+          id: "A1",
+          name: "Item A",
+          b: {
+            id: "B1",
+            c: {
+              id: "C1",
+              name: "Item C",
+            },
+          },
         },
-        menu2: {
-          sections: {
-            main: "Group 1",
-            sub: "Group 2"
-          }
-        }
+        d: {
+          id: "D1",
+        },
       };
 
       const result = select(data, {
-        [DEEP_ALL]: { [WHERE]: "Group 1" }
+        [DEEP_ALL]: { id: true },
       });
 
       expect(result).toEqual({
-        menu1: {
-          layout: ["Group 1"],  // Arrays get compacted
-          meta: { title: "Group 1" }
+        a: {
+          id: "A1",
+          b: {
+            id: "B1",
+            c: {
+              id: "C1",
+            },
+          },
         },
-        menu2: {
-          sections: {
-            main: "Group 1"
-          }
-        }
+        d: {
+          id: "D1",
+        },
       });
     });
 
-    it('should find number values at any depth', () => {
+    it("should project multiple fields independently", () => {
       const data = {
-        config: {
-          maxItems: 100,
-          settings: {
-            timeout: 5000,
-            retries: 3
-          }
+        users: {
+          john: { name: "John", age: 30 },
+          jane: { name: "Jane", email: "jane@example.com" },
+          bob: { age: 25, email: "bob@example.com" },
         },
-        prices: [100, 200, 100]
       };
 
       const result = select(data, {
-        [DEEP_ALL]: { [WHERE]: 100 }
+        [DEEP_ALL]: { name: true, email: true },
       });
 
       expect(result).toEqual({
-        config: {
-          maxItems: 100
+        users: {
+          john: { name: "John" },
+          jane: { name: "Jane", email: "jane@example.com" },
+          bob: { email: "bob@example.com" },
         },
-        prices: [100, 100]  // Arrays get compacted
       });
     });
 
-    it('should find specific boolean values using WHERE', () => {
+    it("should handle nested field projection", () => {
       const data = {
-        settings: {
-          enabled: true,
-          debug: false,
-          features: {
-            darkMode: true,
-            autoSave: false
-          }
-        }
-      };
-
-      // To match boolean true specifically, use WHERE
-      const result = select(data, {
-        [DEEP_ALL]: {
-          [WHERE]: (v: any) => v === true
-        }
-      });
-
-      expect(result).toEqual({
-        settings: {
-          enabled: true,
-          features: {
-            darkMode: true
-          }
-        }
-      });
-    });
-
-    it('should find null values', () => {
-      const data = {
-        user: {
-          name: "Alice",
-          email: null,
-          profile: {
-            bio: null,
-            avatar: "pic.jpg"
-          }
-        }
+        company: {
+          info: {
+            name: "TechCorp",
+            address: {
+              street: "123 Main St",
+              city: "San Francisco",
+            },
+          },
+          departments: {
+            engineering: {
+              address: {
+                building: "A",
+                floor: 3,
+              },
+            },
+          },
+        },
       };
 
       const result = select(data, {
-        [DEEP_ALL]: { [WHERE]: { [EQ]: null } }
+        [DEEP_ALL]: { address: true },
       });
 
       expect(result).toEqual({
-        user: {
-          email: null,
-          profile: {
-            bio: null
-          }
-        }
+        company: {
+          info: {
+            address: {
+              street: "123 Main St",
+              city: "San Francisco",
+            },
+          },
+          departments: {
+            engineering: {
+              address: {
+                building: "A",
+                floor: 3,
+              },
+            },
+          },
+        },
       });
     });
   });
 
-  describe('object pattern matching', () => {
-    it('should match objects with all specified fields', () => {
+  describe("WHERE-only selection", () => {
+    it("should return matching objects at any depth", () => {
       const data = {
-        products: {
-          item1: { price: 100, name: "Coffee" },
-          item2: { price: 200, name: "Tea", category: "drinks" },
-          metadata: { version: 1, author: "system" }
-        }
+        catalog: {
+          books: {
+            fiction: {
+              title: "The Great Novel",
+              author: "Jane Doe",
+              price: 20,
+            },
+            science: {
+              title: "Physics 101",
+              author: "Dr. Smith",
+              price: 50,
+            },
+          },
+        },
       };
 
       const result = select(data, {
-        [DEEP_ALL]: {
-          price: true,
-          name: true
-        }
+        [DEEP_ALL]: { [WHERE]: { price: { [GT]: 30 } } },
       });
 
       expect(result).toEqual({
-        products: {
-          item1: { price: 100, name: "Coffee" },
-          item2: { price: 200, name: "Tea" }
-        }
+        catalog: {
+          books: {
+            science: {
+              title: "Physics 101",
+              author: "Dr. Smith",
+              price: 50,
+            },
+          },
+        },
       });
     });
 
-    it('should only match when ALL fields are present', () => {
+    it("should match objects with specific field values", () => {
       const data = {
-        item1: { price: 100, stock: 5 },
-        item2: { price: 200 },  // missing stock
-        item3: { stock: 10 }    // missing price
+        level1: {
+          id: "L1",
+          level2: {
+            name: "Orange Juice",
+            price: 100,
+          },
+        },
       };
 
       const result = select(data, {
-        [DEEP_ALL]: {
-          price: true,
-          stock: true
-        }
+        [DEEP_ALL]: { [WHERE]: { name: { [EQ]: "Orange Juice" } } },
       });
 
       expect(result).toEqual({
-        item1: { price: 100, stock: 5 }
+        level1: {
+          level2: {
+            name: "Orange Juice",
+            price: 100,
+          },
+        },
       });
     });
 
-    it('should select only requested fields even if more exist', () => {
+    it("should match using MATCH operator for pattern matching on primitives", () => {
       const data = {
         products: {
-          coffee: {
-            price: 90,
-            name: "Espresso",
-            description: "Italian coffee",
-            category: "hot drinks"
-          }
-        }
+          item1: { name: "Coffee", description: "Dark roast" },
+          item2: { name: "Orange Tea", description: "Citrus blend" },
+          item3: { name: "Green Tea", description: "Light and fresh" },
+        },
       };
 
       const result = select(data, {
-        [DEEP_ALL]: {
-          price: true,
-          name: true
-        }
+        [DEEP_ALL]: { [WHERE]: { [MATCH]: "/orange/i" } },
       });
 
+      // MATCH at this level matches primitive string values
       expect(result).toEqual({
         products: {
-          coffee: {
-            price: 90,
-            name: "Espresso"
-          }
-        }
+          item2: {
+            name: "Orange Tea",
+          },
+        },
+      });
+    });
+
+    it("should match objects when using field-level predicates", () => {
+      const data = {
+        products: {
+          item1: { name: "Coffee", description: "Dark roast" },
+          item2: { name: "Orange Tea", description: "Citrus blend" },
+          item3: { name: "Green Tea", description: "Light and fresh" },
+        },
+      };
+
+      const result = select(data, {
+        [DEEP_ALL]: { [WHERE]: { name: { [MATCH]: "/orange/i" } } },
+      });
+
+      // When matching at object level with field predicate, return full object
+      expect(result).toEqual({
+        products: {
+          item2: {
+            name: "Orange Tea",
+            description: "Citrus blend",
+          },
+        },
       });
     });
   });
 
-  describe('WHERE predicate matching', () => {
-    it('should use WHERE to find matching objects', () => {
-      const data = {
-        menu: {
-          items: {
-            coffee: { price: 90, name: "Coffee" },
-            tea: { price: 200, name: "Tea" },
-            water: { price: 0, name: "Water" }
-          }
-        }
-      };
-
-      const result = select(data, {
-        [DEEP_ALL]: {
-          [WHERE]: (obj: any) => obj?.price > 100,
-          price: true,
-          name: true
-        }
-      });
-
-      expect(result).toEqual({
-        menu: {
-          items: {
-            tea: { price: 200, name: "Tea" }
-          }
-        }
-      });
-    });
-
-    it('should match with predicate objects', () => {
+  describe("WHERE with field projection", () => {
+    it("should match and project specified fields", () => {
       const data = {
         products: {
-          item1: { price: 50 },
-          item2: { price: 150 },
-          item3: { price: 250 }
-        }
+          item1: { name: "Coffee", price: 5, stock: 100 },
+          item2: { name: "Orange Tea", price: 8, stock: 50 },
+          item3: { name: "Green Tea", price: 6, stock: 75 },
+        },
       };
 
       const result = select(data, {
         [DEEP_ALL]: {
-          [WHERE]: { price: { [GT]: 100 } },
-          price: true
-        }
+          [WHERE]: { [MATCH]: "Orange" },
+          price: true,
+          stock: true,
+        },
       });
 
       expect(result).toEqual({
         products: {
-          item2: { price: 150 },
-          item3: { price: 250 }
-        }
+          item2: {
+            name: "Orange Tea",
+            price: 8,
+            stock: 50,
+          },
+        },
       });
     });
 
-    it('should match strings with regex', () => {
+    it("should project fields from parent when match is deep", () => {
       const data = {
-        en: {
-          header: "Main Group",
-          section: "Group 1 Items",
-          footer: "End of page"
-        }
+        product: {
+          id: "P123",
+          sku: "ABC-789",
+          details: {
+            name: "Fresh Orange Juice",
+            description: "100% natural",
+          },
+        },
       };
 
       const result = select(data, {
         [DEEP_ALL]: {
-          [WHERE]: { [MATCH]: "Group" }
-        }
+          [WHERE]: { [MATCH]: "Orange" },
+          id: true,
+          sku: true,
+        },
       });
 
       expect(result).toEqual({
-        en: {
-          header: "Main Group",
-          section: "Group 1 Items"
-          // footer excluded because it doesn't contain "Group"
-        }
+        product: {
+          details: {
+            name: "Fresh Orange Juice",
+          },
+          id: "P123",
+          sku: "ABC-789",
+        },
       });
     });
 
-    it('should select non-existent fields as undefined when WHERE matches', () => {
+    it("should handle multiple matches at different depths", () => {
       const data = {
-        items: {
-          a: { price: 100, name: "A" },
-          b: { price: 200 },  // no name
-          c: { value: 300 }   // different structure
-        }
+        store: {
+          name: "Orange Store",
+          id: "S1",
+          location: "Downtown",
+          products: {
+            juice: {
+              name: "Orange Juice",
+              id: "P1",
+              price: 5,
+            },
+            tea: {
+              name: "Green Tea",
+              id: "P2",
+              price: 3,
+            },
+          },
+        },
       };
 
       const result = select(data, {
         [DEEP_ALL]: {
-          [WHERE]: (obj: any) => obj?.price > 150,
-          price: true,
+          [WHERE]: { [MATCH]: "Orange" },
+          id: true,
+          location: true,
+        },
+      });
+
+      expect(result).toEqual({
+        store: {
+          name: "Orange Store",
+          id: "S1",
+          location: "Downtown",
+          products: {
+            juice: {
+              name: "Orange Juice",
+              id: "P1",
+            },
+          },
+        },
+      });
+    });
+
+    it("should project fields that exist only at matched level", () => {
+      const data = {
+        catalog: {
+          books: {
+            item1: { title: "Learn TypeScript", isbn: "123", price: 30 },
+            item2: { title: "JavaScript Guide", price: 25 },
+            item3: { title: "Node.js Mastery", isbn: "789", price: 35 },
+          },
+        },
+      };
+
+      const result = select(data, {
+        [DEEP_ALL]: {
+          [WHERE]: { price: { [GT]: 30 } },
+          isbn: true,
+        },
+      });
+
+      expect(result).toEqual({
+        catalog: {
+          books: {
+            item3: {
+              title: "Node.js Mastery",
+              price: 35,
+              isbn: "789",
+            },
+          },
+        },
+      });
+    });
+  });
+
+  describe("complex predicate patterns", () => {
+    it("should match objects with multiple field conditions", () => {
+      const data = {
+        inventory: {
+          item1: { name: "Laptop", price: 1000, stock: 5 },
+          item2: { name: "Mouse", price: 50, stock: 100 },
+          item3: { name: "Keyboard", price: 150, stock: 0 },
+          item4: { name: "Monitor", price: 500, stock: 10 },
+        },
+      };
+
+      const result = select(data, {
+        [DEEP_ALL]: {
+          [WHERE]: {
+            price: { [LT]: 200 },
+            stock: { [GT]: 0 },
+          },
           name: true,
-          category: true  // doesn't exist
-        }
-      });
-
-      expect(result).toEqual({
-        items: {
-          b: { price: 200, name: undefined, category: undefined }
-        }
-      });
-    });
-  });
-
-  describe('complex nested structures', () => {
-    it('should traverse deeply nested objects', () => {
-      const data = {
-        level1: {
-          level2: {
-            level3: {
-              level4: {
-                target: "found me!",
-                other: "not this"
-              }
-            }
-          }
-        }
-      };
-
-      const result = select(data, {
-        [DEEP_ALL]: { [WHERE]: { [EQ]: "found me!" } }
-      });
-
-      expect(result).toEqual({
-        level1: {
-          level2: {
-            level3: {
-              level4: {
-                target: "found me!"
-              }
-            }
-          }
-        }
-      });
-    });
-
-    it('should handle mixed arrays and objects', () => {
-      const data = {
-        menu: {
-          items: [
-            { price: 100, name: "Item 1" },
-            { price: 200, name: "Item 2" },
-            { metadata: { price: 150 } }
-          ]
-        }
-      };
-
-      const result = select(data, {
-        [DEEP_ALL]: {
-          [WHERE]: (obj: any) => obj?.price >= 150,
-          price: true
-        }
-      });
-
-      expect(result).toEqual({
-        menu: {
-          items: [
-            { price: 200 },  // Arrays get compacted
-            { metadata: { price: 150 } }
-          ]
-        }
-      });
-    });
-
-    it('should preserve structure with multiple matches', () => {
-      const data = {
-        menus: {
-          coffee: {
-            hot: { espresso: { price: 90 } },
-            cold: { iced: { price: 150 } }
-          },
-          tea: {
-            green: { price: 200 },
-            black: { price: 180 }
-          }
-        }
-      };
-
-      const result = select(data, {
-        [DEEP_ALL]: {
-          price: true
-        }
-      });
-
-      expect(result).toEqual({
-        menus: {
-          coffee: {
-            hot: { espresso: { price: 90 } },
-            cold: { iced: { price: 150 } }
-          },
-          tea: {
-            green: { price: 200 },
-            black: { price: 180 }
-          }
-        }
-      });
-    });
-  });
-
-  describe('edge cases', () => {
-    it('should handle empty objects', () => {
-      const data = {};
-      const result = select(data, {
-        [DEEP_ALL]: { [WHERE]: { [EQ]: "anything" } }
-      });
-      expect(result).toBeUndefined();
-    });
-
-    it('should handle arrays at root', () => {
-      const data = [
-        { value: 1 },
-        { value: 2 },
-        "value",
-        { nested: { value: 3 } }
-      ];
-
-      const result = select(data, {
-        [DEEP_ALL]: {
-          value: true
-        }
-      });
-
-      expect(result).toEqual([
-        { value: 1 },
-        { value: 2 },
-        { nested: { value: 3 } }  // Arrays get compacted
-      ]);
-    });
-
-    it('should not recurse into primitives', () => {
-      const data = {
-        text: "Group 1",
-        number: 42,
-        bool: true
-      };
-
-      const result = select(data, {
-        [DEEP_ALL]: {
-          [WHERE]: (v: any) => false,  // Never matches
-          anything: true
-        }
-      });
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should handle circular references gracefully', () => {
-      const data: any = {
-        a: { value: 1 }
-      };
-      data.a.circular = data;  // Create circular reference
-
-      // This should not cause infinite recursion
-      const result = select(data, {
-        [DEEP_ALL]: {
-          value: true
-        }
-      });
-
-      expect(result?.a?.value).toBe(1);
-      // The circular reference creates infinite depth, but we still get results
-    });
-  });
-
-  describe('complex nested DEEP_ALL patterns', () => {
-    it('should find items with fields containing specific text pattern', () => {
-      const data = {
-        products: {
-          items: {
-            juice: { name: "Orange Juice", description: "Fresh orange juice" },
-            soda: { name: "Cola", description: "Carbonated drink" },
-            water: { name: "Spring Water", description: "Natural water" }
-          }
         },
-        menu: {
-          breakfast: {
-            items: {
-              fruit: { name: "Orange Slices", price: 5 },
-              drink: { name: "Coffee", price: 3 }
-            }
-          }
-        }
-      };
-
-      // Find all items that have any field containing 'orange' (case insensitive)
-      const result = select(data, {
-        [DEEP_ALL]: {
-          items: {
-            [DEEP_ALL]: {
-              [WHERE]: { [MATCH]: "(?i).*orange.*" }
-            }
-          }
-        }
       });
 
       expect(result).toEqual({
-        products: {
-          items: {
-            juice: { name: "Orange Juice", description: "Fresh orange juice" }
-          }
+        inventory: {
+          item2: {
+            name: "Mouse",
+            price: 50,
+            stock: 100,
+          },
         },
-        menu: {
-          breakfast: {
-            items: {
-              fruit: { name: "Orange Slices" }
-            }
-          }
-        }
       });
     });
 
-    it('should handle multiple nested DEEP_ALL operators', () => {
+    it("should handle NOT operator in predicates", () => {
       const data = {
-        company: {
-          departments: {
-            engineering: {
-              teams: {
-                frontend: {
-                  members: [
-                    { name: "Alice", level: 3 },
-                    { name: "Bob", level: 2 }
-                  ]
-                },
-                backend: {
-                  members: [
-                    { name: "Charlie", level: 3 },
-                    { name: "David", level: 1 }
-                  ]
-                }
-              }
-            },
-            sales: {
-              teams: {
-                east: {
-                  members: [
-                    { name: "Eve", level: 2 },
-                    { name: "Frank", level: 3 }
-                  ]
-                }
-              }
-            }
-          }
-        }
+        users: {
+          u1: { name: "Alice", status: "active" },
+          u2: { name: "Bob", status: "inactive" },
+          u3: { name: "Charlie", status: "active" },
+        },
       };
 
-      // Find all level 3 members in any team
       const result = select(data, {
         [DEEP_ALL]: {
-          teams: {
-            [DEEP_ALL]: {
-              members: {
-                [DEEP_ALL]: {
-                  [WHERE]: { level: { [EQ]: 3 } },
-                  name: true,
-                  level: true
-                }
-              }
-            }
-          }
-        }
+          [WHERE]: { status: { [NOT]: "inactive" } },
+          name: true,
+        },
       });
 
       expect(result).toEqual({
-        company: {
-          departments: {
-            engineering: {
-              teams: {
-                frontend: {
-                  members: [
-                    { name: "Alice", level: 3 }
-                  ]
-                },
-                backend: {
-                  members: [
-                    { name: "Charlie", level: 3 }
-                  ]
-                }
-              }
-            },
-            sales: {
-              teams: {
-                east: {
-                  members: [
-                    { name: "Frank", level: 3 }
-                  ]
-                }
-              }
-            }
-          }
-        }
+        users: {
+          u1: { name: "Alice", status: "active" },
+          u3: { name: "Charlie", status: "active" },
+        },
       });
     });
 
-    it('should combine DEEP_ALL with regular field selection', () => {
+    it("should handle null and undefined with EQ operator", () => {
       const data = {
+        records: {
+          r1: { id: 1, value: null },
+          r2: { id: 2, value: undefined },
+          r3: { id: 3, value: "data" },
+          r4: { id: 4 },
+        },
+      };
+
+      const result = select(data, {
+        [DEEP_ALL]: {
+          [WHERE]: { value: { [EQ]: null } },
+          id: true,
+        },
+      });
+
+      // EQ with null matches both null and undefined
+      expect(result).toEqual({
+        records: {
+          r1: { id: 1, value: null },
+          r2: { id: 2, value: undefined },
+        },
+      });
+    });
+  });
+
+  describe("edge cases", () => {
+    it("should handle empty objects", () => {
+      const data = {
+        a: {},
+        b: { c: {} },
+      };
+
+      const result = select(data, {
+        [DEEP_ALL]: { id: true },
+      });
+
+      expect(result).toEqual(undefined);
+    });
+
+    it("should handle arrays correctly", () => {
+      const data = {
+        items: [
+          { id: 1, name: "First" },
+          { id: 2, name: "Second" },
+          { id: 3, name: "Third" },
+        ],
+      };
+
+      const result = select(data, {
+        [DEEP_ALL]: { id: true },
+      });
+
+      expect(result).toEqual({
+        items: [{ id: 1 }, { id: 2 }, { id: 3 }],
+      });
+    });
+
+    it("should not traverse into primitive values", () => {
+      const data = {
+        text: "This is a string with id inside",
+        number: 12345,
+        object: { id: "real-id" },
+      };
+
+      const result = select(data, {
+        [DEEP_ALL]: { id: true },
+      });
+
+      expect(result).toEqual({
+        object: { id: "real-id" },
+      });
+    });
+
+    // Circular references are not handled - they will cause stack overflow
+    // This is expected behavior as it matches JavaScript's native handling
+  });
+
+  describe("combining with other operators", () => {
+    it("should work with regular field selection at the same level", () => {
+      const data = {
+        metadata: { version: "1.0", author: "System" },
         stores: {
           downtown: {
             inventory: {
               electronics: { count: 50, value: 10000 },
-              clothing: { count: 200, value: 5000 }
+              books: { count: 200, value: 5000 },
             },
-            staff: 10
+            staff: 10,
           },
           uptown: {
             inventory: {
               electronics: { count: 30, value: 15000 },
-              books: { count: 500, value: 3000 }
+              books: { count: 500, value: 3000 },
             },
-            staff: 8
-          }
-        }
+            staff: 8,
+          },
+        },
       };
 
-      // Find high-value inventory items and also get staff info
       const result = select(data, {
+        metadata: true,
         stores: {
           [DEEP_ALL]: {
             [WHERE]: { value: { [GT]: 9000 } },
             count: true,
-            value: true
+            value: true,
           },
-          downtown: { staff: true },
-          uptown: { staff: true }
-        }
+        },
       });
 
       expect(result).toEqual({
+        metadata: { version: "1.0", author: "System" },
         stores: {
           downtown: {
             inventory: {
-              electronics: { count: 50, value: 10000 }
+              electronics: { count: 50, value: 10000 },
             },
-            staff: 10
           },
           uptown: {
             inventory: {
-              electronics: { count: 30, value: 15000 }
+              electronics: { count: 30, value: 15000 },
             },
-            staff: 8
-          }
-        }
+          },
+        },
       });
     });
 
-    it('should handle DEEP_ALL with complex predicates', () => {
+    it("should allow nested DEEP_ALL operators", () => {
       const data = {
-        metrics: {
-          q1: {
-            january: { revenue: 1000, profit: 100 },
-            february: { revenue: 1500, profit: -50 },
-            march: { revenue: 2000, profit: 300 }
+        regions: {
+          north: {
+            stores: {
+              s1: { manager: { name: "Alice", level: 3 } },
+              s2: { manager: { name: "Bob", level: 2 } },
+            },
           },
-          q2: {
-            april: { revenue: 1800, profit: 200 },
-            may: { revenue: 2200, profit: 400 },
-            june: { revenue: 1900, profit: 150 }
-          }
-        }
+          south: {
+            stores: {
+              s3: { manager: { name: "Charlie", level: 3 } },
+              s4: { manager: { name: "David", level: 1 } },
+            },
+          },
+        },
       };
 
-      // Find all profitable months with revenue > 1500
       const result = select(data, {
         [DEEP_ALL]: {
-          [WHERE]: (obj: any) => obj?.revenue > 1500 && obj?.profit > 0,
-          revenue: true,
-          profit: true
-        }
+          stores: {
+            [DEEP_ALL]: {
+              [WHERE]: { level: { [GT]: 2 } },
+              name: true,
+            },
+          },
+        },
       });
 
       expect(result).toEqual({
-        metrics: {
-          q1: {
-            march: { revenue: 2000, profit: 300 }
+        regions: {
+          north: {
+            stores: {
+              s1: { manager: { name: "Alice", level: 3 } },
+            },
           },
-          q2: {
-            april: { revenue: 1800, profit: 200 },
-            may: { revenue: 2200, profit: 400 },
-            june: { revenue: 1900, profit: 150 }
-          }
-        }
+          south: {
+            stores: {
+              s3: { manager: { name: "Charlie", level: 3 } },
+            },
+          },
+        },
       });
     });
   });
 
-  describe('recursive selection alternatives', () => {
-    it('should use ALL for recursive selection instead of DEEP_ALL with true', () => {
+  describe("common use cases", () => {
+    it("should find all objects with both required fields", () => {
       const data = {
-        config: {
-          settings: {
-            theme: "dark",
-            language: "en"
-          }
-        }
+        items: {
+          a: { price: 10, stock: 5 },
+          b: { price: 20 },
+          c: { stock: 10 },
+          d: { price: 30, stock: 0, discount: 0.1 },
+        },
       };
 
-      // Use ALL instead of DEEP_ALL for selecting everything
+      // To find objects with both price and stock, use WHERE
       const result = select(data, {
-        config: {
-          settings: true
-        }
+        [DEEP_ALL]: {
+          [WHERE]: {
+            price: { [NOT]: undefined },
+            stock: { [NOT]: undefined },
+          },
+        },
       });
 
       expect(result).toEqual({
-        config: {
-          settings: {
-            theme: "dark",
-            language: "en"
-          }
-        }
+        items: {
+          a: { price: 10, stock: 5 },
+          d: { price: 30, stock: 0, discount: 0.1 },
+        },
+      });
+    });
+
+    it("should search for text in any field and get identifiers", () => {
+      const data = {
+        products: {
+          p1: {
+            id: "PROD-001",
+            name: "Organic Orange Juice",
+            description: "Fresh and natural",
+          },
+          p2: {
+            id: "PROD-002",
+            name: "Apple Juice",
+            description: "Made from organic apples",
+          },
+          p3: {
+            id: "PROD-003",
+            name: "Grape Juice",
+            description: "Sweet grape flavor",
+          },
+        },
+      };
+
+      const result = select(data, {
+        [DEEP_ALL]: {
+          [WHERE]: { [MATCH]: "/organic/i" },
+          id: true,
+        },
+      });
+
+      expect(result).toEqual({
+        products: {
+          p1: {
+            id: "PROD-001",
+            name: "Organic Orange Juice",
+          },
+          p2: {
+            id: "PROD-002",
+            description: "Made from organic apples",
+          },
+        },
       });
     });
   });

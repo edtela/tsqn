@@ -1,6 +1,7 @@
 import { ALL, DEEP_ALL, NOT, WHERE } from "./symbols.js";
 import { Select, SelectResult } from "./types.js";
 import { evalPredicate } from "./predicate.js";
+import { toJSON } from "./serialization.js";
 
 export function select<T>(data: T, stmt: Select<T>): SelectResult<T> | undefined {
   const result = selectImpl(data, stmt);
@@ -8,66 +9,80 @@ export function select<T>(data: T, stmt: Select<T>): SelectResult<T> | undefined
 }
 
 const NO_RESULT = Symbol();
-export function selectImpl(data: any, stmt: Select<any>): SelectResult<any> | typeof NO_RESULT {
+type ImplResult = SelectResult<any> | typeof NO_RESULT;
+export function selectImpl(data: any, stmt: Select<any>, result: ImplResult = NO_RESULT): ImplResult {
   const { [DEEP_ALL]: deepAll, [ALL]: all, [WHERE]: where, ...rest } = stmt as any;
 
   if (where) {
     // Check if it's a function or a predicate
     const whereResult = typeof where === "function" ? where(data) : evalPredicate(data, where);
-
     if (!whereResult) {
       return NO_RESULT;
     }
   }
 
-  if (data == null || typeof data !== "object") {
+  // Empty select statement {} is equivalent to true. In general in tsqn {} is true and [] is false
+  if (deepAll === undefined && all === undefined && Object.keys(rest).length === 0) {
     return data;
   }
 
-  let result: any = NO_RESULT;
+  if (data == null || typeof data !== "object") {
+    // There is a select statement, but data is not an object.
+    return NO_RESULT;
+  }
+
   function addToResult(key: string, keyStmt: any) {
+    /*console.log(
+      `ADD TO RESULT: , ${key}, \n STMT: ${JSON.stringify(toJSON(keyStmt))}, \ndata: ${JSON.stringify(toJSON(data))}`,
+      );*/
     if (Array.isArray(data)) {
       const index = Number(key);
       if (!Number.isInteger(index) || index < 0) {
-        return;
+        return NO_RESULT;
       }
     }
 
-    let keyValue = NO_RESULT;
+    let keyResult = result == NO_RESULT ? NO_RESULT : key in result ? result[key] : NO_RESULT;
     if (keyStmt === true) {
-      keyValue = data[key];
+      // TODO maybe only if key in data
+      keyResult = data[key];
     } else if (keyStmt != null && typeof keyStmt === "object") {
-      keyValue = selectImpl(data[key], keyStmt);
+      keyResult = selectImpl(data[key], keyStmt, keyResult);
     }
 
-    if (keyValue !== NO_RESULT) {
+    if (keyResult !== NO_RESULT) {
       if (result == NO_RESULT) {
         result = Array.isArray(data) ? [] : {};
       }
-      result[key] = keyValue;
+      result[key] = keyResult;
     }
+    //console.log("RESULT", result);
+    return keyResult;
   }
 
   if (deepAll) {
-    for (const key in data) {
-      const value = data[key];
-      if (value == null || typeof value !== "object") {
-        if (deepAll[WHERE]) {
-          addToResult(key, deepAll);
+    const { [WHERE]: predicate, ...projection } = deepAll;
+
+    for (const dataKey of Object.keys(data)) {
+      if (predicate == null) {
+        for (const projectKey of Object.keys(projection)) {
+          if (dataKey === projectKey) {
+            addToResult(dataKey, projection[projectKey]);
+          } else if (data[dataKey] != null && typeof data[dataKey] === "object") {
+            addToResult(dataKey, { [DEEP_ALL]: { [projectKey]: projection[projectKey] } });
+          }
         }
       } else {
-        let predicate = deepAll[WHERE];
-        if (!predicate) {
-          predicate = Object.keys(deepAll).reduce((acc, key) => {
-            acc[key] = { [NOT]: undefined };
-            return acc;
-          }, {} as any);
+        let addResult = addToResult(dataKey, { [WHERE]: predicate });
+        if (addResult === NO_RESULT) {
+          //The predicate didn't apply. If the data is an object, go deeper
+          if (data[dataKey] != null && typeof data[dataKey] === "object") {
+            addResult = addToResult(dataKey, { [DEEP_ALL]: { [WHERE]: predicate } });
+          }
         }
-        const passes = typeof predicate === "function" ? predicate(value) : evalPredicate(value, predicate);
-        if (passes) {
-          addToResult(key, deepAll);
-        } else {
-          addToResult(key, { [DEEP_ALL]: deepAll });
+
+        if (addResult !== NO_RESULT) {
+          widenResult(data[dataKey], result[dataKey], projection);
         }
       }
     }
@@ -90,84 +105,25 @@ export function selectImpl(data: any, stmt: Select<any>): SelectResult<any> | ty
   return result;
 }
 
-/** USES T and Object.keys()
-export function selectImplTS<T>(data: T, stmt: Select<T>): SelectResult<T> | typeof NO_RESULT {
-  const { [DEEP_ALL]: deepAll, [ALL]: all, [WHERE]: where, ...rest } = stmt as any;
-
-  if (where) {
-    const whereResult = typeof where === "function" ? where(data) : evalPredicate(data, where as any);
-    if (!whereResult) {
-      return NO_RESULT;
-    }
+function widenResult(data: any, result: any, projections: Record<string, any>) {
+  if (data == null || typeof data !== "object" || result == null || typeof result !== "object") {
+    return;
   }
 
-  if (data == null || typeof data !== "object") {
-    return data as SelectResult<T>;
-  }
-
-  let result: SelectResult<T> | typeof NO_RESULT = NO_RESULT;
-
-  function addToResult(key: keyof T, keyStmt: any) {
-    if (Array.isArray(data)) {
-      const index = Number(key);
-      if (!Number.isInteger(index) || index < 0) {
-        return;
-      }
-    }
-
-    let keyValue: any | typeof NO_RESULT = NO_RESULT;
-    if (keyStmt === true) {
-      keyValue = data[key];
-    } else if (keyStmt != null && typeof keyStmt === "object") {
-      keyValue = selectImplTS(data[key], keyStmt);
-    }
-
-    if (keyValue !== NO_RESULT) {
-      if (result === NO_RESULT) {
-        result = (Array.isArray(data) ? [] : {}) as SelectResult<T>;
-      }
-      (result as any)[key] = keyValue;
-    }
-  }
-
-  if (deepAll) {
-    for (const key of Object.keys(data) as (keyof T)[]) {
-      const value = data[key];
-      if (value == null || typeof value !== "object") {
-        addToResult(key, deepAll);
-      } else {
-        let predicate = (deepAll as any)[WHERE];
-        if (!predicate) {
-          predicate = Object.keys(deepAll).reduce((acc, k) => {
-            (acc as any)[k] = { [NOT]: undefined };
-            return acc;
-          }, {});
-        }
-        const passes = typeof predicate === "function" ? predicate(value) : evalPredicate(value, predicate);
-        if (passes) {
-          addToResult(key, deepAll);
-        } else {
-          addToResult(key, { [DEEP_ALL]: deepAll });
+  for (const resultKey of Object.keys(result)) {
+    for (const projectKey of Object.keys(projections)) {
+      // If field is in data, then select it
+      if (projectKey in data) {
+        // Only select it if wasn't already selected
+        if (!(projectKey in result)) {
+          const fieldResult = selectImpl(data, { [projectKey]: projections[projectKey] });
+          if (fieldResult !== NO_RESULT) {
+            result[projectKey] = fieldResult[projectKey];
+          }
         }
       }
+      // Go down the result path and widen recursively
+      widenResult(data[resultKey], result[resultKey], { [projectKey]: projections[projectKey] });
     }
   }
-
-  if (all) {
-    for (const key of Object.keys(data) as (keyof T)[]) {
-      addToResult(key, all);
-    }
-  }
-
-  if (Array.isArray(result) && result.length > 0) {
-    const r = result;
-    result = result.filter((v, i) => i in r) as SelectResult<T>;
-  }
-
-  for (const key of Object.keys(rest) as (keyof T)[]) {
-    addToResult(key, rest[key]);
-  }
-
-  return result;
 }
-*/
