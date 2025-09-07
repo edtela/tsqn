@@ -1,6 +1,6 @@
 {
   "name": "tsqn",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript Query Notation - Declarative data updates with automatic change tracking",
   "keywords": [
     "typescript",

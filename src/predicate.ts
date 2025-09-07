@@ -18,10 +18,7 @@ export function evalPredicate<T>(value: T, predicate: Predicate<T>): boolean {
       return Object.keys(predicate).filter((k) => k !== undefined).length === 0;
     }
     return Object.keys(predicate).every((key: any) => {
-      if (key in value) {
-        return evalPredicate(value[key], predicate[key]);
-      }
-      return false;
+      return evalPredicate(value[key], predicate[key]);
     });
   }
   return result;
@@ -63,20 +60,14 @@ export function testOperator(value: any, operator: symbol, condition: any): bool
     case ALL:
       if (value !== null && valueType === "object") {
         return Object.keys(value).every((key) => {
-          if (key in value) {
-            evalPredicate(value[key], condition);
-          }
-          return false;
+          return evalPredicate(value[key], condition);
         });
       }
       return false;
     case SOME:
       if (value !== null && valueType === "object") {
         return Object.keys(value).some((key) => {
-          if (key in value) {
-            evalPredicate(value[key], condition);
-          }
-          return false;
+          return evalPredicate(value[key], condition);
         });
       }
       return false;

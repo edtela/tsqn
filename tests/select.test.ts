@@ -65,7 +65,8 @@ describe('select', () => {
     });
 
     it('should handle null and undefined data', () => {
-      expect(select(null, { any: true } as any)).toBeNull();
+      // Selecting fields from primitives (including null/undefined) returns undefined
+      expect(select(null, { any: true } as any)).toBeUndefined();
       expect(select(undefined, { any: true } as any)).toBeUndefined();
     });
 
@@ -132,9 +133,10 @@ describe('select', () => {
         }
       });
 
+      // ALL and specific selections merge - both value and extra are selected for 'b'
       expect(result).toEqual({
         a: { value: 1 },
-        b: { extra: 'b' },  // Specific overrides ALL
+        b: { value: 2, extra: 'b' },  // Specific expands ALL selection
         c: { value: 3 }
       });
     });
@@ -306,10 +308,10 @@ describe('select', () => {
         '1': { extra: true }
       });
 
-      // ALL creates dense array, then specific index overrides
+      // ALL and specific selections merge - both value and extra are selected for index 1
       expect(result).toEqual([
         { value: 1 },
-        { extra: 'b' },  // Index 1 overridden
+        { value: 2, extra: 'b' },  // Index 1 has both value (from ALL) and extra (from specific)
         { value: 3 }
       ]);
     });

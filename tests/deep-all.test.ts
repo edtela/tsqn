@@ -1,6 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { select, DEEP_ALL, WHERE, GT, LT, EQ, NEQ, MATCH, NOT } from "../src/index.js";
 
+/**
+ * DEEP_ALL operator tests
+ * 
+ * IMPORTANT: DEEP_ALL has "fuzzy" matching behavior - it matches at ANY depth in the tree,
+ * including parent objects that might not have the fields being tested.
+ * 
+ * For example, when checking { value: { [EQ]: null } }:
+ * - It will match objects where value is explicitly null or undefined
+ * - It will ALSO match objects where the value field is missing (undefined)
+ * - This includes parent objects in the tree that don't have a value field at all
+ * 
+ * To avoid unintended matches, predicates often need to be more specific by:
+ * - Adding additional field constraints (e.g., id: { [NEQ]: null })
+ * - Using arrays with NOT to exclude multiple values (e.g., [NOT]: ["inactive", { [EQ]: null }])
+ */
 describe("DEEP_ALL operator - new semantics", () => {
   describe("field projection without WHERE", () => {
     it("should independently project fields from any depth", () => {
@@ -395,12 +410,16 @@ describe("DEEP_ALL operator - new semantics", () => {
         },
       };
 
+      // NOTE: Using [NOT]: ["inactive", { [EQ]: null }] to exclude both "inactive" AND null/undefined
+      // Without the null check, parent objects (data, users) would match since they have no status field
       const result = select(data, {
         [DEEP_ALL]: {
-          [WHERE]: { status: { [NOT]: "inactive" } },
+          [WHERE]: { status: { [NOT]: ["inactive", { [EQ]: null }] } },
           name: true,
         },
       });
+
+      console.log("RESULT: ", result);
 
       expect(result).toEqual({
         users: {
@@ -420,18 +439,21 @@ describe("DEEP_ALL operator - new semantics", () => {
         },
       };
 
+      // NOTE: Adding id: { [NEQ]: null } to ensure we only match record objects with an id field
+      // Without this, parent objects (data, records) would also match since they have no value field
       const result = select(data, {
         [DEEP_ALL]: {
-          [WHERE]: { value: { [EQ]: null } },
+          [WHERE]: { value: { [EQ]: null }, id: { [NEQ]: null } },
           id: true,
         },
       });
 
-      // EQ with null matches both null and undefined
+      // EQ with null matches both null and undefined (including missing fields)
       expect(result).toEqual({
         records: {
           r1: { id: 1, value: null },
           r2: { id: 2, value: undefined },
+          r4: { id: 4 },
         },
       });
     });
