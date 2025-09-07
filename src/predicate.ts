@@ -3,7 +3,7 @@ import { Predicate } from "./types.js";
 
 const operators = [ALL, SOME, NOT, LT, GT, LTE, GTE, EQ, NEQ, MATCH];
 
-export function evalPredicate<T>(value: T, predicate: Predicate<T>): boolean {
+export function evalPredicate(value: any, predicate: any): boolean {
   if (predicate == null || typeof predicate !== "object") {
     return predicate === value;
   }
@@ -12,13 +12,13 @@ export function evalPredicate<T>(value: T, predicate: Predicate<T>): boolean {
     return predicate.some((pred) => evalPredicate(value, pred));
   }
 
-  const result = operators.filter((op) => op in predicate).every((op: any) => testOperator(value, op, predicate[op]));
+  const result = operators.filter((op) => op in predicate).every((op: any) => testOperator(value, op, (predicate as any)[op]));
   if (result) {
     if (value == null || typeof value !== "object") {
       return Object.keys(predicate).filter((k) => k !== undefined).length === 0;
     }
     return Object.keys(predicate).every((key: any) => {
-      return evalPredicate(value[key], predicate[key]);
+      return evalPredicate(value[key], (predicate as any)[key]);
     });
   }
   return result;
